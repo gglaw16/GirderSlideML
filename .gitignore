@@ -1,0 +1,11 @@
+/chips
+/chips/*
+/debug
+/debug/*
+/cache
+/cache/*
+/fcnn16/*
+/*.png
+/*.pyc
+/__*
+/*~
