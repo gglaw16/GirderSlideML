@@ -10,7 +10,7 @@
 #   creates batch numpy arrays for training. 
 # - record_error(loss_np, decay)
 #   set new error for the last sample_batch chips.
-# parameters: input_spacing
+# parameters: input_level
 
 
 # Branched from DigitalGlobe/data_json.py
@@ -255,11 +255,17 @@ class ChipData:
         np.clip(image, 0, 255, out=image)
         image = np.uint8(image)
 
-        truth = sample_image(self.truth, truth_center, truth_size, rotation=rotation, \
+        truth = sample_image(self.truth, truth_center,
+                             truth_size, rotation=rotation, \
                              mirror=mirror, scale=scale, pad_value=0, \
                              interpolation=cv2.INTER_NEAREST)
-
         ignore = truth[...,0]
+
+        # at some stage, pixles are interpolated 
+        truth[truth>128] = 255
+        truth[truth<128] = 0
+        ignore[ignore>128] = 255
+        ignore[ignore<128] = 0
         
         return image, truth[...,1].astype(np.float)/255.0, ignore
 
@@ -349,7 +355,6 @@ class ImageData:
         """
         gc = g.get_gc()
         
-        
         rgb_mask = g.get_image_file(gc,self.item_id,'masks.png')
         if rgb_mask.shape[0] != error_map.shape[0] or \
             rgb_mask.shape[1] != error_map.shape[1]:
@@ -359,16 +364,16 @@ class ImageData:
         # Get spacing variables for the thre different system: mask, input, output.
         # Mask can be an arbitray level (power of two).
         mask_spacing = int(round(float(self.y_dim) / error_map.shape[0])) 
-        input_spacing = self.params['input_spacing']
+        input_spacing = math.pow(2, self.params['input_level'])
         output_spacing = input_spacing * self.params['rf_stride']
         
         # Compute the size of the input chip we will need.
         # Augmentation shrinks the chip so we have to save a larger orginal image here.
-        # We also have to leave enough padding for rotation augmentation
+        # We also have to leave enough padding for rotsation augmentation
         # (without clipping corners).
         min_scale = self.params['min_augmentation_scale']
         chip_size = int(math.ceil(self.params['input_size'] * math.sqrt(2) / min_scale))
-        mask_size = chip_size * input_spacing / mask_spacing
+        mask_size = int(chip_size * input_spacing / mask_spacing)
         mask_margin = int(math.ceil(mask_size / 2))
         
         # Get a list of sample centers (in mask coordinates).
@@ -400,9 +405,12 @@ class ImageData:
             image = g.get_image_cutout(gc, self.item_id, (x,y), chip_size, chip_size,
                                        scale=1.0/input_spacing, cache='cache')
 
+            image = np.dstack((image, np.zeros(image.shape[:-1])))
+
+
             # Crop the corresponding section from the mask.
-            x0 = mask_x - int(mask_size/2)
-            y0 = mask_y - int(mask_size/2)
+            x0 = int(mask_x - mask_size/2)
+            y0 = int(mask_y - mask_size/2)
 
             mask_chip = rgb_mask[y0:y0+mask_size, x0:x0+mask_size,:]
             # Rescale to net_output coordinates / truth image.
@@ -411,7 +419,7 @@ class ImageData:
             
             truth = cv2.resize(mask_chip, (truth_size,truth_size),interpolation = cv2.INTER_AREA)
             
-            chip_data = ChipData(image, truth, (x,y), self, self.params['input_spacing'])
+            chip_data = ChipData(image, truth, (x,y), self, input_spacing)
             new_chips.append(chip_data)
             
         return new_chips
@@ -548,17 +556,17 @@ class TrainingData:
         gc = g.get_gc()
         image_data = self.image_data[self.image_data_index]
 
-        neg_mask = g.get_image_file(gc, image_data.item_id, 'negative_mask.png')
-        if not neg_mask is None:
-            if len(neg_mask.shape) == 3:
-                neg_mask = neg_mask[:,:,0]
+        error_map = g.get_image_file(gc,image_data.item_id,'error_map.png')
+        if error_map is None:
+            masks = g.get_image_file(gc,image_data.item_id,'masks.png')
+            error_map = masks
 
+        neg_mask = error_map[:,:,2]
+        if not neg_mask is None:
             self.neg_chips += image_data.sample_chips(neg_mask, 100)
 
-        pos_mask = g.get_image_file(gc, image_data.item_id, 'positive_mask.png')
+        pos_mask = error_map[:,:,1]
         if not pos_mask is None:
-            if len(pos_mask.shape) == 3:
-                pos_mask = pos_mask[:,:,0]
             self.pos_chips += image_data.sample_chips(pos_mask, 100)
 
         # Move to the next image to load.
@@ -874,6 +882,7 @@ class TrainingData:
         pos_chips = self.choose_chips(pos_chips, int(num/2))
         for chip in pos_chips:
             input, truth, ignore = chip.augment(input_size, truth_size, params)
+            # some interpolation is causeing some values to be less that 1
             inputs.append(input)
             truths.append(truth)
             ignores.append(ignore)
@@ -909,8 +918,8 @@ class TrainingData:
         """
         decay = 1 =>  just set the error to the new error (no memory)
         """
-        for idx in range(loss_np.shape[0]):
-            error = np.mean(loss_np[idx, ...])
+        for idx in range(len(loss_np)):
+            error = np.mean(loss_np[idx])
             chip = self.batch_chips[idx]
             chip.error = (1-decay)*chip.error + decay*error
 

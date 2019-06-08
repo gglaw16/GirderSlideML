@@ -25,7 +25,7 @@ import ipdb
 #=================================================================================
 def load_net(params):
     net = target.net()
-    net.set_schedule(4)
+    net.set_schedule(params['schedule'])
     params['rf_size'] = net.get_rf_size()
     params['rf_stride'] = net.get_rf_stride()
     
@@ -55,6 +55,7 @@ if __name__ == '__main__':
     params['folder_path'] = '.' 
     params['target_group'] = 'fcnn116'
     params['input_level'] = 4
+    params['schedule'] = 8  
 
 
     
@@ -80,14 +81,14 @@ if __name__ == '__main__':
     net_out_flip = net_out[:,:,0]
     net_out = net_out[:,:,1]
     
-    cv2.imwrite('prediction.png',net_out)
+    cv2.imwrite('prediction%d.png'%params['input_level'],net_out)
     files = gc.listFile(item_id)
     for f in files:
-        if f['name'] == 'prediction.png':
+        if f['name'] == 'prediction%d.png'%params['input_level']:
             gc.delete('file/%s'%f['_id'])
         if f['name'] == 'error_map.png':
             gc.delete('file/%s'%f['_id'])
-    gc.uploadFileToItem(item_id, 'prediction.png')
+    gc.uploadFileToItem(item_id, 'prediction%d.png'%params['input_level'])
     
     # Update pdf / error map
 
