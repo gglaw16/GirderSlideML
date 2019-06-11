@@ -300,7 +300,7 @@ def execute_large_image(net, image, params):
     # Pad the input image because the output shrinks due to convolution.
     in_margin = int(in_overlap/2)
     # allocate
-    in_pad = np.ones((in_shape[0]+in_overlap, in_shape[1]+in_overlap, 3), dtype=np.uint8) * 128
+    in_pad = np.ones((in_shape[0]+in_overlap, in_shape[1]+in_overlap, 4), dtype=np.uint8) * 128
     # copy the inpout into the new array
     in_pad[in_margin:in_margin+in_shape[0], in_margin:in_margin+in_shape[1], :] = image
     in_image = in_pad
