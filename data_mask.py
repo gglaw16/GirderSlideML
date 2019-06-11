@@ -405,7 +405,28 @@ class ImageData:
             image = g.get_image_cutout(gc, self.item_id, (x,y), chip_size, chip_size,
                                        scale=1.0/input_spacing, cache='cache')
 
-            image = np.dstack((image, np.zeros(image.shape[:-1])))
+
+            
+
+            # NEW STUFF GOES HERE
+
+            files = gc.listFile(self.item_id)
+
+            for f in files:
+                if f['name'] == 'prediction%d.png'%params['input_level']:
+                    prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%params['input_level'])
+                    
+            if prediction != None:
+                resp = gc.get("item/%s/tiles"%self.item_id)
+                yDim = resp['tileHeight']
+                xDim = resp['tileWidth']
+                xInputDim = xDim/pow(2,params['input_level'])
+                yInputDim = yDim/pow(2,params['input_level'])
+                prediction = prediction.cv2.reshape((xInputDim,yInputDim))
+                prediction = prediction[x-chip_size:x+chip_size,y-chip_size,y+chip_size]
+                image = np.dstack((image, prediction))
+            else:
+                image = np.dstack((image, np.zeros(image.shape[:-1])))
 
 
             # Crop the corresponding section from the mask.
