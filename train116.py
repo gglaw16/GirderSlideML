@@ -84,7 +84,7 @@ import math
 import os
 import numpy as np
 from pprint import pprint
-import utils
+import my_utils
 import girder as g
 # todo: get rid of the misc function references.
 import data_mask as d
@@ -166,10 +166,10 @@ def train(net, data, params):
         truth_np = np.array(truth_np).astype(np.long)
 
         input_tensor = torch.from_numpy(input_np).float()
-        input_tensor = input_tensor.cuda(params['gpu'])
+        ##input_tensor = input_tensor.cuda(params['gpu'])
 
-        truth_tensor_cpu = torch.from_numpy(truth_np).long()
-        truth_tensor = truth_tensor_cpu.cuda(params['gpu'])
+        truth_tensor = torch.from_numpy(truth_np).long()
+        ##truth_tensor = truth_tensor.cuda(params['gpu'])
         # Extract the ignore mask from the truth values.  Ignore bit is 128
         dont_care_np = (dont_care_np > 128).astype(np.int)
         ignore_mask_tensor = torch.from_numpy(dont_care_np)
@@ -253,10 +253,10 @@ def adversarial(net, input_np, truth_np, params):
     """ Modify the inputs to be more 'false'.
     """
     input_tensor = torch.from_numpy(input_np).float()
-    input_tensor = input_tensor.cuda(params['gpu'])
+    ##input_tensor = input_tensor.cuda(params['gpu'])
 
-    truth_tensor_cpu = torch.from_numpy(truth_np).long()
-    truth_tensor = truth_tensor_cpu.cuda(params['gpu'])
+    truth_tensor = torch.from_numpy(truth_np).long()
+    ##truth_tensor = truth_tensor.cuda(params['gpu'])
     input_tensor.requires_grad = True
 
     # Extract the ignore mask from the truth values.  Ignore bit is 128
@@ -325,7 +325,7 @@ def test_noise(params):
     # Load the network model
     print('loading net')
     net = load_net(params)    
-    net.cuda(params['gpu'])
+    ##net.cuda(params['gpu'])
 
     num_images = 16
     min_scale = 0.8
@@ -357,7 +357,7 @@ def main_test_images(params):
     print('loading net')
     net = load_net(params)    
     #shock_weights(net)
-    net.cuda(params['gpu'])
+    ##net.cuda(params['gpu'])
     # Lock batch normalization
     net.eval()
     
@@ -431,7 +431,7 @@ def test_sample_batch(data, net, params):
 
 def main_train(params):
     net = load_net(params)
-    net.cuda(params['gpu'])
+    #net.cuda(params['gpu'])
 
     # A hacky way to train up through the levels.
     net.set_schedule(params['schedule'])
@@ -517,13 +517,13 @@ if __name__ == '__main__':
     params['folder_path'] = '.'  # this is the path to store incremental results.
     params['truth_radius'] = 30
     params['ignore_radius'] = 60
-    params['gpu'] = 0 #3 # 0
+    params['gpu'] = None #3 # 0
     params['num_epochs'] = 100
     # Batches / Epoch: Load a new image every # batchs
     params['num_batches'] = 30
     # resample batch training images every # cycles
     params['num_minibatches'] = 8 #20
-    params['rate'] = 0.0005
+    params['rate'] = 0.01
     params['heatmap_decay'] = 0.2
     params['debug'] = False
     params['target_group'] = 'fcnn116'
@@ -535,7 +535,7 @@ if __name__ == '__main__':
     params['image_cache_dir'] = '../cached_images'
     params['chip_cache_dir'] = '../cached_chips'
     params['input_level'] = 3
-    params['schedule'] = 12
+    params['schedule'] = 4
 
 
     main_train(params)

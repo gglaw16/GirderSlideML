@@ -51,7 +51,7 @@ def load_net(params):
         
 if __name__ == '__main__':
     params = {}
-    params['gpu'] = 0
+    params['gpu'] = None
     params['folder_path'] = '.' 
     params['target_group'] = 'fcnn116'
     params['input_level'] = 4
@@ -68,11 +68,12 @@ if __name__ == '__main__':
     image = g.get_image(item_id,level=params['input_level'])
     masks = g.get_image_file(gc,item_id,'masks.png')
     error_map = g.get_image_file(gc,item_id,'error_map.png')
-    if error_map is None and masks != None:
+    if error_map is None and not(masks is None):
         error_map = np.zeros(masks.shape)
         
     net = load_net(params)
-    net.cuda(params['gpu'])
+    if params['gpu'] != None:
+        net.cuda(params['gpu'])
     
     image = np.dstack((image, np.zeros(image.shape[:-1])))
 

@@ -101,7 +101,7 @@ class net(nn.Module):
         batch_size, num_comps, dy, dx = x.shape
         if num_comps != 128:
             pad = Variable(torch.zeros(batch_size, 128-num_comps, dy, dx))
-            pad = pad.cuda(0)
+            ##pad = pad.cuda(0)
             x = torch.cat((x, pad), 1)   
             
         # Post layers that get executed for every schedule.
