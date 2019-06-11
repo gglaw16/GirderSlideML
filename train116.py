@@ -534,7 +534,7 @@ if __name__ == '__main__':
 
     params['image_cache_dir'] = '../cached_images'
     params['chip_cache_dir'] = '../cached_chips'
-    params['input_level'] = 4
+    params['input_level'] = 3
     params['schedule'] = 12
 
 
