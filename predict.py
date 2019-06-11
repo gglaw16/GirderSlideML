@@ -51,14 +51,12 @@ def load_net(params):
         
 if __name__ == '__main__':
     params = {}
-    params['gpu'] = None
+    params['gpu'] = 0
     params['folder_path'] = '.' 
     params['target_group'] = 'fcnn116'
     params['input_level'] = 4
     params['schedule'] = 12 
 
-
-    
     gc = g.get_gc()
     
     #item_id = '5915d969dd98b578723a09c2'
@@ -72,7 +70,7 @@ if __name__ == '__main__':
         error_map = np.zeros(masks.shape)
         
     net = load_net(params)
-    if params['gpu'] != None:
+    if torch.cuda.is_available():
         net.cuda(params['gpu'])
     
     image = np.dstack((image, np.zeros(image.shape[:-1])))
