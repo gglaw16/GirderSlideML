@@ -22,16 +22,16 @@ import girder as g
     
 if __name__ == '__main__':
     gc = g.get_gc()
-    item_id = "5915d9c1dd98b578723a09c5"
+    item_id = "5915da6add98b578723a09cb"
     
-    negative = cv2.imread('negative-d.png',0)
-    positive = cv2.imread('positive-d.png',0)
+    negative = cv2.imread('negative-f.png',0)
+    positive = cv2.imread('positive-f.png',0)
     unknown = np.ones(negative.shape) *255
     unknown -= (positive + negative)
     bgr = np.dstack((unknown,positive,negative)) # stacks 3 h x w arrays -> h x w x 3
     
-    cv2.imwrite('masks_d.png',bgr)
+    cv2.imwrite('masks.png',bgr)
     
-    gc.uploadFileToItem(item_id, 'masks_d.png')
+    gc.uploadFileToItem(item_id, 'masks.png')
 
 

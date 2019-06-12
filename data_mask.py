@@ -50,7 +50,7 @@ from my_utils import *
 import net_utils
 import girder as g
 import pylaw
-
+import matplotlib.pyplot as plt
 
 # ============= external
 # load_data(params)
@@ -358,7 +358,7 @@ class ImageData:
         rgb_mask = g.get_image_file(gc,self.item_id,'masks.png')
         if rgb_mask.shape[0] != error_map.shape[0] or \
             rgb_mask.shape[1] != error_map.shape[1]:
-                print "Shape of error map must be the same shape as the mask"
+                print("Shape of error map must be the same shape as the mask")
                 return []
         
         # Get spacing variables for the thre different system: mask, input, output.
@@ -391,7 +391,22 @@ class ImageData:
         pylaw.sample(error_map, samples, points)
         #points, _ = pylaw2(error_map, 20, sample_count, margin=mask_margin)
 
-        # now crop the chips and save them in the image data.        
+        # now crop the chips and save them in the image data.
+        #get prediction image if it exists
+        prediction = None
+        files = gc.listFile(self.item_id)
+        for f in files:
+            if f['name'] == 'prediction%d.png'%(self.params['input_level']+1):
+                prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%self.params['input_level'])
+                
+        if not(prediction is None):
+            # get the dimensions of the input
+            xInputDim = self.x_dim/pow(2,self.params['input_level'])
+            yInputDim = self.y_dim/pow(2,self.params['input_level'])
+            # reshape the preiction to the same size as the input
+            prediction = cv2.resize(prediction,(xInputDim,yInputDim),interpolation = cv2.INTER_AREA)
+            prediction = np.dot(prediction[...,:3], [0.2989, 0.5870, 0.1140])
+        
         new_chips = []
         for idx in range(len(points)):
             # add the margin back in as an offset
@@ -401,31 +416,23 @@ class ImageData:
             # location of sample point in image coordinates
             x = mask_x * mask_spacing
             y = mask_y * mask_spacing
-            # TODO: use the cache stored in params.
+            # TODO: use the cache stored in params. DONE
             image = g.get_image_cutout(gc, self.item_id, (x,y), chip_size, chip_size,
                                        scale=1.0/input_spacing, cache='cache')
 
 
             
 
-            # NEW STUFF GOES HERE
-
-            files = gc.listFile(self.item_id)
-
-            for f in files:
-                if f['name'] == 'prediction%d.png'%params['input_level']:
-                    prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%params['input_level'])
-                    
-            if prediction != None:
-                resp = gc.get("item/%s/tiles"%self.item_id)
-                yDim = resp['tileHeight']
-                xDim = resp['tileWidth']
-                xInputDim = xDim/pow(2,params['input_level'])
-                yInputDim = yDim/pow(2,params['input_level'])
-                prediction = prediction.cv2.reshape((xInputDim,yInputDim))
-                prediction = prediction[x-chip_size:x+chip_size,y-chip_size,y+chip_size]
-                image = np.dstack((image, prediction))
+            # if there is a prediction image, we want to add it as the fourth input
+            if not(prediction is None):
+                #crop out the section that we need for the chip
+                x /= 2
+                y /= 2
+                prediction_chip = prediction[(x-chip_size/2):(x+chip_size/2),(y-chip_size/2):(y+chip_size/2)]
+                #add it as the fourth channel
+                image = np.dstack((image, prediction_chip))
             else:
+                #if there isn't a prediction image, just add zeros as the fourth column
                 image = np.dstack((image, np.zeros(image.shape[:-1])))
 
 
@@ -544,8 +551,8 @@ class TrainingData:
         # - in progress
 
         print("working")
-        # Hard code the single "free tail bat" slide (HEC-1606 Slide C
-        image_data = ImageData("5915d969dd98b578723a09c2", params)
+        # Hard code the single "free tail bat" slide (HEC-1606 Slide F
+        image_data = ImageData("5915da6add98b578723a09cb", params)
         self.image_data.append(image_data)
         
         
@@ -923,8 +930,10 @@ class TrainingData:
     
         if params['debug']:
             for idx in range(len(input_np)):
-                image = inputs[idx]
+                image = inputs[idx][:,:,0:2]
                 cv2.imwrite("debug/batch_%d_image.png"%idx, image)
+                prediction = inputs[idx][:,:,3]
+                cv2.imwrite("debug/batch_%d_image.png"%idx, prediction)
                 truth = truths[idx]
                 tmp = truth * 255
                 cv2.imwrite("debug/batch_%d_truth.png"%idx, tmp)
@@ -1016,9 +1025,3 @@ if __name__ == '__main__':
     image = image_data.load_image()        
     chip_size = 312
     data.load_positive_chips(image_data, image, chip_size)
-
-    
-
-
-    
-

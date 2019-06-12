@@ -34,4 +34,4 @@ img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
 plt.figure(figsize=(9,12))
 plt.imshow(img,cmap='gray')
 
-cv2.imwrite('map_d.png', img)
+cv2.imwrite('map_f.png', img)

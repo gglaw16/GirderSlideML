@@ -61,14 +61,15 @@ if __name__ == '__main__':
     
     gc = g.get_gc()
     
-    #item_id = '5915d969dd98b578723a09c2'
-    item_id = '5915d9c1dd98b578723a09c5'
-
+    #item_id = '5915d969dd98b578723a09c2' #c
+    #item_id = '5915d9c1dd98b578723a09c5' #d
+    #item_id = '5915da13dd98b578723a09c8' #e
+    item_id = '5915da6add98b578723a09cb' #f
 
     image = g.get_image(item_id,level=params['input_level'])
     masks = g.get_image_file(gc,item_id,'masks.png')
     error_map = g.get_image_file(gc,item_id,'error_map.png')
-    if error_map is None and masks != None:
+    if error_map is None and not(masks is None):
         error_map = np.zeros(masks.shape)
         
     net = load_net(params)
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     gc.uploadFileToItem(item_id, 'prediction%d.png'%params['input_level'])
     
     # Update pdf / error map
-    if masks != None:
+    if not(masks is None):
 
         net_out = cv2.resize(net_out,(masks.shape[1],masks.shape[0]))
         net_out_flip = cv2.resize(net_out_flip,(masks.shape[1],masks.shape[0]))
