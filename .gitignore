@@ -1,3 +1,4 @@
+*.pth
 /tmp
 /chips
 /chips/*
@@ -6,6 +7,7 @@
 /cache
 /cache/*
 /fcnn16/*
+/fcnn16/*pth
 /*.png
 /*.pyc
 /__*

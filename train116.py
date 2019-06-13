@@ -160,6 +160,11 @@ def train(net, data, params):
         print("== Batch %d"%batch)
         input_np, truth_np, dont_care_np = data.sample_batch(params)
 
+        #cv2.imwrite("input0.png", input_np[0][...,0:3])
+        #cv2.imwrite("inputP0.png", input_np[0][...,3])
+        #cv2.imwrite("input1.png", input_np[1][...,0:3])
+        #cv2.imwrite("inputP1.png", input_np[1][...,3])
+        
         # Scale to 0->1
         input_np = input_np.astype(np.float32)/255.0
         input_np = np.moveaxis(input_np, 3, 1)

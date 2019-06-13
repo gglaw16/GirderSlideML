@@ -254,7 +254,8 @@ class ChipData:
                              mirror=mirror, scale=scale, pad_value=180)
 
         # handle brightness contrast augmentaiton
-        image = (image*contrast)+brightness;
+        # TODO: Fix this so it does not change the prediction channel.
+        #image = (image*contrast)+brightness;
         np.clip(image, 0, 255, out=image)
         image = np.uint8(image)
 
@@ -398,17 +399,19 @@ class ImageData:
         #get prediction image if it exists
         prediction = None
         files = gc.listFile(self.item_id)
+        prediction_level = self.params['input_level']+1
         for f in files:
-            if f['name'] == 'prediction%d.png'%(self.params['input_level']+1):
-                prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%self.params['input_level'])
-                
+            if f['name'] == 'prediction%d.png'%prediction_level:
+                prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%prediction_level)
+
         if not(prediction is None):
+            if len(prediction.shape) == 3:
+                prediction = prediction[...,0]
             # get the dimensions of the input
-            xInputDim = self.x_dim/pow(2,self.params['input_level'])
-            yInputDim = self.y_dim/pow(2,self.params['input_level'])
+            xInputDim = int(self.x_dim/input_spacing)
+            yInputDim = int(self.y_dim/input_spacing)
             # reshape the preiction to the same size as the input
             prediction = cv2.resize(prediction,(xInputDim,yInputDim),interpolation = cv2.INTER_AREA)
-            prediction = np.dot(prediction[...,:3], [0.2989, 0.5870, 0.1140])
         
         new_chips = []
         for idx in range(len(points)):
@@ -423,15 +426,13 @@ class ImageData:
             image = g.get_image_cutout(gc, self.item_id, (x,y), chip_size, chip_size,
                                        scale=1.0/input_spacing, cache='cache')
 
-
-            
-
             # if there is a prediction image, we want to add it as the fourth input
             if not(prediction is None):
                 #crop out the section that we need for the chip
-                x /= 2
-                y /= 2
-                prediction_chip = prediction[(x-chip_size/2):(x+chip_size/2),(y-chip_size/2):(y+chip_size/2)]
+                # (x,y) is in level0 coordinates.
+                x0 = int((x/input_spacing)-(chip_size/2))
+                y0 = int((y/input_spacing)-(chip_size/2))
+                prediction_chip = prediction[y0:y0+chip_size, x0:x0+chip_size]
                 #add it as the fourth channel
                 image = np.dstack((image, prediction_chip))
             else:
@@ -594,11 +595,11 @@ class TrainingData:
 
         neg_mask = error_map[:,:,2]
         if not neg_mask is None:
-            self.neg_chips += image_data.sample_chips(neg_mask, 100)
+            self.neg_chips += image_data.sample_chips(neg_mask, 2)
 
         pos_mask = error_map[:,:,1]
         if not pos_mask is None:
-            self.pos_chips += image_data.sample_chips(pos_mask, 100)
+            self.pos_chips += image_data.sample_chips(pos_mask, 2)
 
         # Move to the next image to load.
         self.image_data_index += 1
