@@ -1,6 +1,9 @@
 # api:
 # - data = TrainingData(params)#   returns a data object.
 # - data.incremental_load()
+# api:
+# - data = TrainingData(params)#   returns a data object.
+# - data.incremental_load()
 #   Load the next image and get positive and negative chips.
 # - data.prune_chips()
 #   remove low error chips to limit the number of cached chips.

@@ -57,8 +57,6 @@ if __name__ == '__main__':
     params['input_level'] = 4
     params['schedule'] = 12 
 
-
-    
     gc = g.get_gc()
     
     #item_id = '5915d969dd98b578723a09c2' #c
@@ -73,7 +71,8 @@ if __name__ == '__main__':
         error_map = np.zeros(masks.shape)
         
     net = load_net(params)
-    net.cuda(params['gpu'])
+    if torch.cuda.is_available():
+        net.cuda(params['gpu'])
     
     image = np.dstack((image, np.zeros(image.shape[:-1])))
 

@@ -1,21 +1,21 @@
 # Upload initiali positive and negative mask to girder item:
 # priming the pump. One time use.
 
-import sys
-import pdb
-import scipy.misc
-import random
-import csv
+#import sys
+#import pdb
+#import scipy.misc
+#import random
+#import csv
 import cv2
-import math
-import json
-import os
-import glob
-import shutil
+#import math
+#import json
+#import os
+#import glob
+#import shutil
 import numpy as np
-from pprint import pprint
-from utils import *
-import net_utils
+#from pprint import pprint
+#from utils import *
+#import net_utils
 import girder as g
 
 
