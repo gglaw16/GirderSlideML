@@ -90,7 +90,7 @@ import girder as g
 import data_mask as d
 import net_utils
 #from adversarial import *
-
+import json
 
 
 
@@ -520,6 +520,8 @@ def load_net(params):
     
 if __name__ == '__main__':
     params = {}
+    
+    '''
     # We get these from the net now
     #params['rf_stride'] = 4
     #params['rf_size'] = 116
@@ -534,7 +536,7 @@ if __name__ == '__main__':
     params['num_batches'] = 30
     # resample batch training images every # cycles
     params['num_minibatches'] = 8 #20
-    params['rate'] = 0.01
+    params['rate'] = 0.005
     params['heatmap_decay'] = 0.2
     params['debug'] = False
     params['target_group'] = 'fcnn116'
@@ -547,6 +549,10 @@ if __name__ == '__main__':
     params['chip_cache_dir'] = '../cached_chips'
     params['input_level'] = 3
     params['schedule'] = 4
+
+    with open('params.json', 'w') as outfile: json.dump(params, outfile)
+    '''
+    with open('params.json') as json_file: params = json.load(json_file)
 
 
     main_train(params)

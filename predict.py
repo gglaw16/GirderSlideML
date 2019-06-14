@@ -17,7 +17,8 @@ import numpy as np
 import girder as g
 import net_utils
 import ipdb
-
+import matplotlib.pyplot as plt
+import json
 
     
             
@@ -51,11 +52,7 @@ def load_net(params):
         
 if __name__ == '__main__':
     params = {}
-    params['gpu'] = 0
-    params['folder_path'] = '.' 
-    params['target_group'] = 'fcnn116'
-    params['input_level'] = 4
-    params['schedule'] = 12 
+    with open('params.json') as json_file: params = json.load(json_file)
 
     gc = g.get_gc()
     
@@ -74,7 +71,17 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
     
-    image = np.dstack((image, np.zeros(image.shape[:-1])))
+    prediction_level = params['input_level']+1
+    prediction = g.get_image_file(gc,item_id,'prediction%d.png'%prediction_level)
+    if prediction is None:
+        image = np.dstack((image, np.zeros(image.shape[:-1])))
+    else:
+        if len(prediction.shape) == 3:
+            prediction = prediction[...,0]
+            prediction = cv2.resize(prediction,(image.shape[1],image.shape[0]), interpolation=cv2.INTER_AREA)
+
+            image = np.dstack((image, prediction))
+
 
     net_out = net_utils.execute_large_image(net,image,params)
 
@@ -84,6 +91,9 @@ if __name__ == '__main__':
     net_out = net_out.astype(np.uint8)
     net_out_flip = net_out[:,:,0]
     net_out = net_out[:,:,1]
+    
+    plt.figure(figsize=(8,10))
+
     
     cv2.imwrite('prediction%d.png'%params['input_level'],net_out)
     files = gc.listFile(item_id)
