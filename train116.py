@@ -160,10 +160,11 @@ def train(net, data, params):
         print("== Batch %d"%batch)
         input_np, truth_np, dont_care_np = data.sample_batch(params)
 
-        #cv2.imwrite("input0.png", input_np[0][...,0:3])
-        #cv2.imwrite("inputP0.png", input_np[0][...,3])
-        #cv2.imwrite("input1.png", input_np[1][...,0:3])
-        #cv2.imwrite("inputP1.png", input_np[1][...,3])
+        if params['debug'] == 'batch':
+            for idx in range(len(input_np)):
+                cv2.imwrite("input_%d.png"%idx, input_np[idx][...,0:3])
+                cv2.imwrite("inputP_%d.png"%idx, input_np[idx][...,3])
+                cv2.imwrite("truth_%d.png"%idx, (truth_np[idx]*255).astype(np.uint8))
         
         # Scale to 0->1
         input_np = input_np.astype(np.float32)/255.0
@@ -200,8 +201,26 @@ def train(net, data, params):
 
             tmp_out = output_tensor
             loss = criterion(tmp_out, truth_tensor)
+
+
+            if params['debug'] == "loss":
+                tmp = loss.cpu().detach().numpy()
+                for idx in range(len(input_np)):
+                    cv2.imwrite("loss1_%d.png"%idx, tmp[idx]*255)
+
+
             # Zero out mask pixels.
             loss[ignore_mask_tensor>128] = 0.0
+
+
+            if params['debug'] == "loss":
+                tmp = loss.cpu().detach().numpy()
+                for idx in range(len(input_np)):
+                    cv2.imwrite("loss2_%d.png"%idx, tmp[idx]*255)
+
+
+            pdb.set_trace()
+
             loss_scalar = loss.mean()
             
             loss_scalar.backward()  #loss.backward(retain_graph=True)
