@@ -365,8 +365,9 @@ class ImageData:
                 print("Shape of error map must be the same shape as the mask")
                 return []
         
-        # Get spacing variables for the thre different system: mask, input, output.
+        # Get spacing variables for the three different system: mask, input, output.
         # Mask can be an arbitray level (power of two).
+        pdb.set_trace()
         mask_spacing = int(round(float(self.y_dim) / error_map.shape[0])) 
         input_spacing = math.pow(2, self.params['input_level'])
         output_spacing = input_spacing * self.params['rf_stride']
@@ -418,6 +419,10 @@ class ImageData:
             # add the margin back in as an offset
             mask_y = int(points[idx,0]) + mask_margin
             mask_x = int(points[idx,1]) + mask_margin
+
+            mask_x = 738 + mask_margin
+            mask_y = 1374 + mask_margin
+            
             # Get the input image chip from girder.
             # location of sample point in image coordinates
             x = mask_x * mask_spacing
@@ -595,11 +600,11 @@ class TrainingData:
 
         neg_mask = error_map[:,:,2]
         if not neg_mask is None:
-            self.neg_chips += image_data.sample_chips(neg_mask, 2)
+            self.neg_chips += image_data.sample_chips(neg_mask, 1)
 
         pos_mask = error_map[:,:,1]
         if not pos_mask is None:
-            self.pos_chips += image_data.sample_chips(pos_mask, 2)
+            self.pos_chips += image_data.sample_chips(pos_mask, 1)
 
         # Move to the next image to load.
         self.image_data_index += 1
