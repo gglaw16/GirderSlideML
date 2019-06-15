@@ -53,8 +53,11 @@ from my_utils import *
 import net_utils
 import girder as g
 import pylaw
-import matplotlib.pyplot as plt
-
+try:
+    import matplotlib.pyplot as plt
+except:
+    print("no ploting")
+    
 # ============= external
 # load_data(params)
 
@@ -355,45 +358,44 @@ class ImageData:
         error_map: sample distribution (can be any spacing).
         sample_count:  the number of chips to return.
         Returns a list of high error chips.
-        mask has to be the same spacing and dimensions as the error map
         """
         gc = g.get_gc()
         
         rgb_mask = g.get_image_file(gc,self.item_id,'masks.png')
-        if rgb_mask.shape[0] != error_map.shape[0] or \
-            rgb_mask.shape[1] != error_map.shape[1]:
-                print("Shape of error map must be the same shape as the mask")
-                return []
-        
-        # Get spacing variables for the thre different system: mask, input, output.
-        # Mask can be an arbitray level (power of two).
-        mask_spacing = int(round(float(self.y_dim) / error_map.shape[0])) 
+
+        # The mask apsect ratio got messed up somewhere.  pixels are not sqaure.
+        # Compensate / undo this.
         input_spacing = math.pow(2, self.params['input_level'])
         output_spacing = input_spacing * self.params['rf_stride']
-        
+        output_dim_x = int(self.x_dim / output_spacing)
+        output_dim_y = int(self.y_dim / output_spacing)
+        rgb_mask = cv2.resize(rgb_mask, (output_dim_x, output_dim_y), cv2.INTER_NEAREST)
+        error_map = cv2.resize(error_map, (output_dim_x, output_dim_y), cv2.INTER_LINEAR)
+
+            
         # Compute the size of the input chip we will need.
         # Augmentation shrinks the chip so we have to save a larger orginal image here.
         # We also have to leave enough padding for rotsation augmentation
         # (without clipping corners).
         min_scale = self.params['min_augmentation_scale']
-        chip_size = int(math.ceil(self.params['input_size'] * math.sqrt(2) / min_scale))
-        mask_size = int(chip_size * input_spacing / mask_spacing)
-        mask_margin = int(math.ceil(mask_size / 2))
+        in_chip_size = int(math.ceil(self.params['input_size'] * math.sqrt(2) / min_scale))
+        out_chip_size = int(in_chip_size * input_spacing / output_spacing)
+        out_chip_margin = int(math.ceil(out_chip_size / 2))
         
-        # Get a list of sample centers (in mask coordinates).
+        # Get a list of sample centers (output / truth coordinates).
         # pylaw sample requires a normalized pdf.
         # make a list of random floats as samples.
         samples = np.random.uniform(0, 1, sample_count)
         samples.sort()
         points = np.zeros((sample_count,2))
         # Shrink the map to avoid sampling margins.
-        error_map = error_map[mask_margin:-mask_margin,
-                              mask_margin:-mask_margin]
+        error_map = error_map[out_chip_margin:-out_chip_margin,
+                              out_chip_margin:-out_chip_margin]
         # find the samples using an optimized c function.
         error_map = error_map.astype(np.float64)
         error_map /= np.sum(error_map)
         pylaw.sample(error_map, samples, points)
-        #points, _ = pylaw2(error_map, 20, sample_count, margin=mask_margin)
+        #points, _ = pylaw2(error_map, 20, sample_count, margin=out_chip_margin)
 
         # now crop the chips and save them in the image data.
         #get prediction image if it exists
@@ -416,23 +418,23 @@ class ImageData:
         new_chips = []
         for idx in range(len(points)):
             # add the margin back in as an offset
-            mask_y = int(points[idx,0]) + mask_margin
-            mask_x = int(points[idx,1]) + mask_margin
+            out_y = int(points[idx,0]) + out_chip_margin
+            out_x = int(points[idx,1]) + out_chip_margin
             # Get the input image chip from girder.
             # location of sample point in image coordinates
-            x = mask_x * mask_spacing
-            y = mask_y * mask_spacing
+            x = out_x * output_spacing
+            y = out_y * output_spacing
             # TODO: use the cache stored in params. DONE
-            image = g.get_image_cutout(gc, self.item_id, (x,y), chip_size, chip_size,
+            image = g.get_image_cutout(gc, self.item_id, (x,y), in_chip_size, in_chip_size,
                                        scale=1.0/input_spacing, cache='cache')
 
             # if there is a prediction image, we want to add it as the fourth input
             if not(prediction is None):
                 #crop out the section that we need for the chip
                 # (x,y) is in level0 coordinates.
-                x0 = int((x/input_spacing)-(chip_size/2))
-                y0 = int((y/input_spacing)-(chip_size/2))
-                prediction_chip = prediction[y0:y0+chip_size, x0:x0+chip_size]
+                in_x0 = int((x/input_spacing)-(in_chip_size/2))
+                in_y0 = int((y/input_spacing)-(in_chip_size/2))
+                prediction_chip = prediction[in_y0:in_y0+in_chip_size, in_x0:in_x0+in_chip_size]
                 #add it as the fourth channel
                 image = np.dstack((image, prediction_chip))
             else:
@@ -441,15 +443,10 @@ class ImageData:
 
 
             # Crop the corresponding section from the mask.
-            x0 = int(mask_x - mask_size/2)
-            y0 = int(mask_y - mask_size/2)
+            out_x0 = int(out_x - out_chip_size/2)
+            out_y0 = int(out_y - out_chip_size/2)
 
-            mask_chip = rgb_mask[y0:y0+mask_size, x0:x0+mask_size,:]
-            # Rescale to net_output coordinates / truth image.
-            # Do not worry about shrinkage due to convolution boundary.
-            truth_size = chip_size / self.params['rf_stride'] 
-            
-            truth = cv2.resize(mask_chip, (truth_size,truth_size),interpolation = cv2.INTER_AREA)
+            truth = rgb_mask[out_y0:out_y0+out_chip_size, out_x0:out_x0+out_chip_size,:]
             
             chip_data = ChipData(image, truth, (x,y), self, input_spacing)
             new_chips.append(chip_data)
