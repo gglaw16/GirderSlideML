@@ -156,11 +156,14 @@ def train(net, data, params):
     num_adversarial_images = 0 # 2
     smax = nn.Softmax(dim=1)
 
+    first = True
+    count = 0    
+    
     for batch in range(params['num_batches']):
         print("== Batch %d"%batch)
         input_np, truth_np, dont_care_np = data.sample_batch(params)
 
-        if params['debug'] == 'batch':
+        if params['debug'] and 'batch' in params['debug']:
             for idx in range(len(input_np)):
                 cv2.imwrite("input_%d.png"%idx, input_np[idx][...,0:3])
                 cv2.imwrite("inputP_%d.png"%idx, input_np[idx][...,3])
@@ -203,7 +206,7 @@ def train(net, data, params):
             loss = criterion(tmp_out, truth_tensor)
 
 
-            if params['debug'] == "loss":
+            if params['debug'] and 'loss' in params['debug']:
                 tmp = loss.cpu().detach().numpy()
                 for idx in range(len(input_np)):
                     cv2.imwrite("loss1_%d.png"%idx, tmp[idx]*255)
@@ -213,7 +216,7 @@ def train(net, data, params):
             loss[ignore_mask_tensor>128] = 0.0
 
 
-            if params['debug'] == "loss":
+            if params['debug'] and 'loss' in params['debug']:
                 tmp = loss.cpu().detach().numpy()
                 for idx in range(len(input_np)):
                     cv2.imwrite("loss2_%d.png"%idx, tmp[idx]*255)
@@ -242,7 +245,14 @@ def train(net, data, params):
                     print("\033[1A %d: loss: %.3f" % (mini + 1, running_loss))
                 #print("%d: loss: %.3f" % (mini + 1, running_loss))
             last_loss = running_loss
-                
+
+        if params['debug'] and 'output' in params['debug']:
+            output = smax(output_tensor)
+            tmp = (output[0,1]).cpu().detach().numpy()
+            cv2.imwrite("output%d.png"%count, tmp*255)
+            print("cycle %d"%count)
+            count += 1    
+            
         if running_loss < start_loss:
             # Save the weights
             filename = os.path.join(params['folder_path'], params['target_group'], 'model%d.pth'%params['input_level'])
