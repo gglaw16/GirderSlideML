@@ -1,7 +1,6 @@
 {"chip_cache_dir": "../cached_chips",
  "target_group": "fcnn116",
  "folder_path": ".",
- "schedule": 8,
  "ignore_radius": 60,
  "data_path": "../DigitalGlobe/images",
  "max_num_training_images": 5000,
@@ -11,10 +10,11 @@
  "gpu": 0,
  "heatmap_decay": 0.2,
  "image_cache_dir": "../cached_images",
- "rate": 0.0001,
+ "rate": 0.01,
  "num_batches": 30,
  "num_minibatches": 10,
- "input_level": 4,
- "input_size": 1800,
+ "schedule": 4,
+ "input_level": 5,
+ "input_size": 900,
  "batch_size": 2
 }

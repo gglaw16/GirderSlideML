@@ -17,7 +17,7 @@ import numpy as np
 import girder as g
 import net_utils
 import ipdb
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import json
 
     
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     net_out_flip = net_out[:,:,0]
     net_out = net_out[:,:,1]
     
-    plt.figure(figsize=(8,10))
+    #plt.figure(figsize=(8,10))
 
     
     cv2.imwrite('prediction%d.png'%params['input_level'],net_out)

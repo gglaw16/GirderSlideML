@@ -156,23 +156,27 @@ def train(net, data, params):
     num_adversarial_images = 0 # 2
     smax = nn.Softmax(dim=1)
 
+    first = True
     count = 0    
 
     for batch in range(params['num_batches']):
         print("== Batch %d"%batch)
         input_np, truth_np, dont_care_np = data.sample_batch(params)
 
-        cv2.imwrite("input0.png", input_np[0][...,0:3])
-        cv2.imwrite("inputP0.png", input_np[0][...,3])
-        cv2.imwrite("input1.png", input_np[1][...,0:3])
-        cv2.imwrite("inputP1.png", input_np[1][...,3])
+        if first:
+            cv2.imwrite("input0.png", input_np[0][...,0:3])
+            cv2.imwrite("inputP0.png", input_np[0][...,3])
+            cv2.imwrite("input1.png", input_np[1][...,0:3])
+            cv2.imwrite("inputP1.png", input_np[1][...,3])
 
-        cv2.imwrite("truth0.png", truth_np[0]*255)
-        cv2.imwrite("truth1.png", truth_np[1]*255)
+            cv2.imwrite("truth0.png", truth_np[0]*255)
+            cv2.imwrite("truth1.png", truth_np[1]*255)
 
-        cv2.imwrite("ignore0.png", dont_care_np[0])
-        cv2.imwrite("ignore1.png", dont_care_np[1])
-        
+            cv2.imwrite("ignore0.png", dont_care_np[0])
+            cv2.imwrite("ignore1.png", dont_care_np[1])
+            first = False
+            pdb.set_trace()
+            
         # Scale to 0->1
         input_np = input_np.astype(np.float32)/255.0
         input_np = np.moveaxis(input_np, 3, 1)
@@ -184,10 +188,7 @@ def train(net, data, params):
             input_tensor = input_tensor.cuda(params['gpu'])
             truth_tensor = truth_tensor.cuda(params['gpu'])
 
-        # Extract the ignore mask from the truth values.  Ignore bit is 128
-        dont_care_np = (dont_care_np > 128).astype(np.int)
-        ignore_mask_tensor = torch.from_numpy(dont_care_np)
-
+        ignore_mask_tensor = torch.from_numpy(dont_care_np.astype(np.int))
 
         
         # learning rate change with batch size?
@@ -205,16 +206,24 @@ def train(net, data, params):
             # forward + backward + optimize
             output_tensor = net(input_tensor)
 
+
             # not needed with only one target
             # Ignore all but the targeted indexes for the loss function.
             #tmp_out = output_tensor[:,params['target_indexes'],...]
 
             tmp_out = output_tensor
+   
             loss = criterion(tmp_out, truth_tensor)
+
             # Zero out mask pixels.
-            loss[ignore_mask_tensor] = 0.0
+            loss[ignore_mask_tensor>128] = 0.0
+            
+            cv2.imwrite("loss2.png", loss[0].cpu().detach().numpy()*255)
+
             loss_scalar = loss.mean()
             
+            print("loss2 %f"%loss_scalar.item())
+
             loss_scalar.backward()  #loss.backward(retain_graph=True)
             optimizer.step()
             
@@ -243,7 +252,8 @@ def train(net, data, params):
         tmp = (output[0,1]).cpu().detach().numpy()
         cv2.imwrite("output%d.png"%count, tmp*255)
         print("cycle %d"%count)
-        count += 1
+        count += 1    
+
             
         if running_loss < start_loss:
             # Save the weights
