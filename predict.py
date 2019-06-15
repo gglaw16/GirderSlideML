@@ -56,10 +56,10 @@ if __name__ == '__main__':
 
     gc = g.get_gc()
     
-    #item_id = '5915d969dd98b578723a09c2' #c
+    item_id = '5915d969dd98b578723a09c2' #c
     #item_id = '5915d9c1dd98b578723a09c5' #d
     #item_id = '5915da13dd98b578723a09c8' #e
-    item_id = '5915da6add98b578723a09cb' #f
+    #item_id = '5915da6add98b578723a09cb' #f
 
     image = g.get_image(item_id,level=params['input_level'])
     masks = g.get_image_file(gc,item_id,'masks.png')

@@ -556,7 +556,7 @@ class TrainingData:
 
         print("working")
         # Hard code the single "free tail bat" slide (HEC-1606 Slide F
-        image_data = ImageData("5915da6add98b578723a09cb", params)
+        image_data = ImageData("5915d969dd98b578723a09c2", params)
         self.image_data.append(image_data)
         
         
