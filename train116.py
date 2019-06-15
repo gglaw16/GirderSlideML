@@ -1,65 +1,6 @@
-#!/home/local/KHQ/charles.law/envs/pytorch/bin/python
-# sbatch -c 3 -p vigilant --gres=gpu:1 main116.py
+# Masked saved in girder item with the image.
+# positive, negative, unknown  (g,r,b)
 
-
-
-# Trying to extend adversarial modification to all input images.
-
-
-
-
-
-# Failed on these:
-# ./train/Moscow/3857_9_309_159_20170202_31e1ec5c-62ba-4fbe-9a1f-b7c0a1dc908b.png
-# 1.2 GB:  ./train/Denver/3857_11_428_776_20170212_c0201363-a11e-43f6-8554-14db84707f56.png
-
-
-# Scalable training.
-# Load images incrementally.  Load them one at a time, free them immediatly.
-# Load larger "chips" around targets and false positive regions.
-# I select negative chips by first creating an error map of the whole image.
-#   I compute a target number of samples by using the total number of positive chips
-#   and the realtive magnitude of the error map. (huristic)
-# Keep track of the chip error.
-# sample batch: select chips with probability based on error,
-#   augments the chip with rotation, scale, then crop smaller images for training
-
-
-
-
-
-# Load images one at a time. Never have more than one full image in memory at a time.
-# Strategy:
-# - Cache negative and positive image chips.
-# - Positive chips are static.
-# - Negative chips get sampled at some interval.  Negative chips get pruned at the same time.
-# - Chips have their own sample probabliltiy.
-# - Chips are big enough to have rotational augmentatnion.
-#   - This is necessary because positive chips are static.
-# - translation augmentation is accomplished by simply passing larger images through the network.
-# - Each chip has its own truth mask. each chip has its own pdf.
-
-
-
-# finished:
-# - Test read file names and create empty image_data objects.
-# - Test Load positive chips for a single image.
-# - Test generation of truth masks (positve)
-# - Sample negative chips for a single image.
-# - Write code to sample batch images and truth from the chips.
-# - Subsample large targets.
-
-
-
-# TODO:
-# Add adversarial
-
-
-
-# Old ...........  Drop?
-# - figure out why max of negative error map is always 0.1
-# - Save out histograms of error for positive and negative chips.
-# - Abstract the ground truth (implicit annotations, explicit mask).
 
 
 

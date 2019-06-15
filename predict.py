@@ -1,10 +1,3 @@
-#!/home/local/KHQ/charles.law/envs/pytorch/bin/python
-# sbatch -c 2 -p vigilant --gres=gpu:1 autoAnnotatePlane.py
-
-# branched from aurtoAnnotatePlane
-# TODO:
-
-
 
 
 
