@@ -369,8 +369,8 @@ class ImageData:
         output_spacing = input_spacing * self.params['rf_stride']
         output_dim_x = int(self.x_dim / output_spacing)
         output_dim_y = int(self.y_dim / output_spacing)
-        rgb_mask = cv2.resize(rgb_mask, (output_dim_x, output_dim_y), cv2.INTER_NEAREST)
-        error_map = cv2.resize(error_map, (output_dim_x, output_dim_y), cv2.INTER_LINEAR)
+        rgb_mask = cv2.resize(rgb_mask, (output_dim_x, output_dim_y), interpolation=cv2.INTER_NEAREST)
+        error_map = cv2.resize(error_map, (output_dim_x, output_dim_y), interpolation=cv2.INTER_LINEAR)
 
             
         # Compute the size of the input chip we will need.

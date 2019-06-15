@@ -1,3 +1,4 @@
+
 {"chip_cache_dir": "../cached_chips",
  "target_group": "fcnn116",
  "folder_path": ".",
@@ -11,10 +12,11 @@
  "num_batches": 30,
  "heatmap_decay": 0.2,
  "image_cache_dir": "../cached_images",
- "num_minibatches": 8,
- "input_level": 4,
- "rate": 0.0005,
- "schedule": 6,
+ "num_minibatches": 12,
+ "input_level": 2,
+ "rate": 0.00005,
+ "schedule": 8,
  "batch_size": 64,
  "input_size": 116
 }
+
