@@ -164,16 +164,13 @@ def train(net, data, params):
         input_np, truth_np, dont_care_np = data.sample_batch(params)
 
         if first:
-            cv2.imwrite("input0.png", input_np[0][...,0:3])
-            cv2.imwrite("inputP0.png", input_np[0][...,3])
-            cv2.imwrite("input1.png", input_np[1][...,0:3])
-            cv2.imwrite("inputP1.png", input_np[1][...,3])
+            for idx in range(len(input_np)):
+                cv2.imwrite("input%d.png"%idx, input_np[idx][...,0:3])
+                cv2.imwrite("inputP%d.png"%idx, input_np[idx][...,3])
 
-            cv2.imwrite("truth0.png", truth_np[0]*255)
-            cv2.imwrite("truth1.png", truth_np[1]*255)
+                cv2.imwrite("truth%d.png"%idx, truth_np[idx]*255)
 
-            cv2.imwrite("ignore0.png", dont_care_np[0])
-            cv2.imwrite("ignore1.png", dont_care_np[1])
+                cv2.imwrite("ignore%d.png"%idx, dont_care_np[idx])
             first = False
             pdb.set_trace()
             

@@ -15,6 +15,6 @@
  "num_minibatches": 10,
  "schedule": 4,
  "input_level": 5,
- "input_size": 900,
+ "input_size": 200,
  "batch_size": 2
 }
