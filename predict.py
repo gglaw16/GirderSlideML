@@ -22,6 +22,7 @@ def load_net(params):
     net.set_schedule(params['schedule'])
     params['rf_size'] = net.get_rf_size()
     params['rf_stride'] = net.get_rf_stride()
+    net.eval()
     
     filename = os.path.join(params['folder_path'], params['target_group'], 'model%d.pth'%params['input_level'])
     if os.path.isfile(filename):
