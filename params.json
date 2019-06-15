@@ -1,1 +1,22 @@
-{"chip_cache_dir": "../cached_chips", "target_group": "fcnn116", "folder_path": ".", "schedule": 6, "input_size": 116, "ignore_radius": 60, "data_path": "../DigitalGlobe/images", "batch_size": 64, "max_num_training_images": 5000, "input_level": 4, "rate": 0.0001, "min_augmentation_scale": 0.6, "num_epochs": 100, "debug": false, "gpu": 0, "num_batches": 30, "truth_radius": 30, "num_minibatches": 8, "heatmap_decay": 0.2, "image_cache_dir": "../cached_images"}
+
+{"chip_cache_dir": "../cached_chips",
+ "target_group": "fcnn116",
+ "folder_path": ".",
+ "ignore_radius": 60,
+ "data_path": "../DigitalGlobe/images",
+ "max_num_training_images": 5000,
+ "min_augmentation_scale": 0.6,
+ "num_epochs": 100,
+ "debug": false,
+ "gpu": 0,
+ "num_batches": 30,
+ "heatmap_decay": 0.2,
+ "image_cache_dir": "../cached_images",
+ "num_minibatches": 12,
+ "input_level": 2,
+ "rate": 0.00005,
+ "schedule": 8,
+ "batch_size": 64,
+ "input_size": 116
+}
+
