@@ -588,7 +588,7 @@ class TrainingData:
         gc = g.get_gc()
         image_data = self.image_data[self.image_data_index]
 
-        error_map = g.get_image_file(gc,image_data.item_id,'error_map.png')
+        error_map = g.get_image_file(gc,image_data.item_id,'error_map%d.png'%self.params['input_level'])
         if error_map is None:
             masks = g.get_image_file(gc,image_data.item_id,'masks.png')
             error_map = masks

@@ -177,7 +177,6 @@ def train(net, data, params):
             truth_tensor = truth_tensor.cuda(params['gpu'])
 
         # Extract the ignore mask from the truth values.  Ignore bit is 128
-        dont_care_np = (dont_care_np > 128).astype(np.int)
         ignore_mask_tensor = torch.from_numpy(dont_care_np)
         
         # learning rate change with batch size?
@@ -202,7 +201,7 @@ def train(net, data, params):
             tmp_out = output_tensor
             loss = criterion(tmp_out, truth_tensor)
             # Zero out mask pixels.
-            loss[ignore_mask_tensor] = 0.0
+            loss[ignore_mask_tensor>128] = 0.0
             loss_scalar = loss.mean()
             
             loss_scalar.backward()  #loss.backward(retain_graph=True)
