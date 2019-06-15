@@ -156,14 +156,22 @@ def train(net, data, params):
     num_adversarial_images = 0 # 2
     smax = nn.Softmax(dim=1)
 
+    count = 0    
+
     for batch in range(params['num_batches']):
         print("== Batch %d"%batch)
         input_np, truth_np, dont_care_np = data.sample_batch(params)
 
-        #cv2.imwrite("input0.png", input_np[0][...,0:3])
-        #cv2.imwrite("inputP0.png", input_np[0][...,3])
-        #cv2.imwrite("input1.png", input_np[1][...,0:3])
-        #cv2.imwrite("inputP1.png", input_np[1][...,3])
+        cv2.imwrite("input0.png", input_np[0][...,0:3])
+        cv2.imwrite("inputP0.png", input_np[0][...,3])
+        cv2.imwrite("input1.png", input_np[1][...,0:3])
+        cv2.imwrite("inputP1.png", input_np[1][...,3])
+
+        cv2.imwrite("truth0.png", truth_np[0]*255)
+        cv2.imwrite("truth1.png", truth_np[1]*255)
+
+        cv2.imwrite("ignore0.png", dont_care_np[0])
+        cv2.imwrite("ignore1.png", dont_care_np[1])
         
         # Scale to 0->1
         input_np = input_np.astype(np.float32)/255.0
@@ -179,13 +187,15 @@ def train(net, data, params):
         # Extract the ignore mask from the truth values.  Ignore bit is 128
         dont_care_np = (dont_care_np > 128).astype(np.int)
         ignore_mask_tensor = torch.from_numpy(dont_care_np)
+
+
         
         # learning rate change with batch size?
         # create your optimizer
         optimizer = optim.SGD(net.parameters(), lr=params['rate'])
 
         # loss function
-        criterion = torch.nn.CrossEntropyLoss(reduce=False)
+        criterion = torch.nn.CrossEntropyLoss(reduction='none')
     
         for mini in range(params['num_minibatches']):  # loop over the dataset multiple times
             running_loss = 0.0
@@ -227,7 +237,14 @@ def train(net, data, params):
                     print("\033[1A %d: loss: %.3f" % (mini + 1, running_loss))
                 #print("%d: loss: %.3f" % (mini + 1, running_loss))
             last_loss = running_loss
-                
+
+
+        output = smax(output_tensor)
+        tmp = (output[0,1]).cpu().detach().numpy()
+        cv2.imwrite("output%d.png"%count, tmp*255)
+        print("cycle %d"%count)
+        count += 1
+            
         if running_loss < start_loss:
             # Save the weights
             filename = os.path.join(params['folder_path'], params['target_group'], 'model%d.pth'%params['input_level'])

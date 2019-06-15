@@ -53,7 +53,7 @@ from my_utils import *
 import net_utils
 import girder as g
 import pylaw
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 # ============= external
 # load_data(params)
@@ -235,8 +235,8 @@ class ChipData:
         There is no translational augmentation because convolution takes care of that.
         """
         # augmentation
-        rotation = random.random() * 360.0
-        mirror = random.random() > 0.5
+        rotation = 0 #random.random() * 360.0
+        mirror = False #random.random() > 0.5
         # scale the ground truth to fit in the rf.
         
         
@@ -256,7 +256,7 @@ class ChipData:
         # handle brightness contrast augmentaiton
         # TODO: Fix this so it does not change the prediction channel.
         #image = (image*contrast)+brightness;
-        np.clip(image, 0, 255, out=image)
+        #np.clip(image, 0, 255, out=image)
         image = np.uint8(image)
 
         truth = sample_image(self.truth, truth_center,
@@ -364,10 +364,9 @@ class ImageData:
             rgb_mask.shape[1] != error_map.shape[1]:
                 print("Shape of error map must be the same shape as the mask")
                 return []
-        
+            
         # Get spacing variables for the three different system: mask, input, output.
         # Mask can be an arbitray level (power of two).
-        pdb.set_trace()
         mask_spacing = int(round(float(self.y_dim) / error_map.shape[0])) 
         input_spacing = math.pow(2, self.params['input_level'])
         output_spacing = input_spacing * self.params['rf_stride']
@@ -420,8 +419,8 @@ class ImageData:
             mask_y = int(points[idx,0]) + mask_margin
             mask_x = int(points[idx,1]) + mask_margin
 
-            mask_x = 738 + mask_margin
-            mask_y = 1374 + mask_margin
+            mask_x = 780
+            mask_y = 1374
             
             # Get the input image chip from girder.
             # location of sample point in image coordinates
@@ -450,12 +449,15 @@ class ImageData:
             y0 = int(mask_y - mask_size/2)
 
             mask_chip = rgb_mask[y0:y0+mask_size, x0:x0+mask_size,:]
+
+            print((y0, y0+mask_size, x0, x0+mask_size))
+
             # Rescale to net_output coordinates / truth image.
             # Do not worry about shrinkage due to convolution boundary.
             truth_size = chip_size / self.params['rf_stride'] 
             
             truth = cv2.resize(mask_chip, (truth_size,truth_size),interpolation = cv2.INTER_AREA)
-            
+
             chip_data = ChipData(image, truth, (x,y), self, input_spacing)
             new_chips.append(chip_data)
             
@@ -905,6 +907,7 @@ class TrainingData:
         inputs = []
         truths = []
         ignores = []
+
 
         num = params['batch_size']
         input_size = params['input_size']

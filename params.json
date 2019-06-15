@@ -13,8 +13,8 @@
  "image_cache_dir": "../cached_images",
  "rate": 0.0001,
  "num_batches": 30,
- "num_minibatches": 200,
- "input_level": 3,
- "input_size": 600,
+ "num_minibatches": 10,
+ "input_level": 4,
+ "input_size": 1800,
  "batch_size": 2
 }
