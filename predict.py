@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     image = g.get_image(item_id,level=params['input_level'])
     masks = g.get_image_file(gc,item_id,'masks.png')
-    error_map = g.get_image_file(gc,item_id,'error_map.png')
+    error_map = g.get_image_file(gc,item_id,'error_map%d.png'%params['input_level'])
     if error_map is None and not(masks is None):
         error_map = np.zeros(masks.shape)
         
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     for f in files:
         if f['name'] == 'prediction%d.png'%params['input_level']:
             gc.delete('file/%s'%f['_id'])
-        if f['name'] == 'error_map.png':
+        if f['name'] == 'error_map%d.png'%params['input_level']:
             gc.delete('file/%s'%f['_id'])
     gc.uploadFileToItem(item_id, 'prediction%d.png'%params['input_level'])
     
@@ -133,7 +133,12 @@ if __name__ == '__main__':
         
         error_map = np.dstack((np.zeros(positive_error_map.shape),positive_error_map,negative_error_map))
         
-        cv2.imwrite('error_map.png',error_map)
-        gc.uploadFileToItem(item_id, 'error_map.png')
+        #error_map[0:1150,:] = 0
+        #error_map[1550:,:] = 0
+        #error_map[:,0:500] = 0
+        #error_map[:,1010:] = 0
+        
+        cv2.imwrite('error_map%d.png'%params['input_level'],error_map)
+        gc.uploadFileToItem(item_id, 'error_map%d.png'%params['input_level'])
     
 
