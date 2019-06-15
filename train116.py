@@ -218,9 +218,6 @@ def train(net, data, params):
                 for idx in range(len(input_np)):
                     cv2.imwrite("loss2_%d.png"%idx, tmp[idx]*255)
 
-
-            pdb.set_trace()
-
             loss_scalar = loss.mean()
             
             loss_scalar.backward()  #loss.backward(retain_graph=True)
