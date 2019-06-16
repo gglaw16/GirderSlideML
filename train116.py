@@ -113,10 +113,10 @@ def train(net, data, params):
         # Scale to 0->1
         input_np = input_np.astype(np.float32)/255.0
         input_np = np.moveaxis(input_np, 3, 1)
-        truth_np = np.array(truth_np).astype(np.long)
+        truth_np = np.array(truth_np)
 
         input_tensor = torch.from_numpy(input_np).float()
-        truth_tensor = torch.from_numpy(truth_np).long()
+        truth_tensor = torch.from_numpy(truth_np).float()
         if torch.cuda.is_available():
             input_tensor = input_tensor.cuda(params['gpu'])
             truth_tensor = truth_tensor.cuda(params['gpu'])
@@ -129,7 +129,7 @@ def train(net, data, params):
         optimizer = optim.SGD(net.parameters(), lr=params['rate'])
 
         # loss function
-        criterion = torch.nn.CrossEntropyLoss(reduce=False)
+        criterion = torch.nn.MSELoss(reduce=False)
     
         for mini in range(params['num_minibatches']):  # loop over the dataset multiple times
             running_loss = 0.0
@@ -138,6 +138,7 @@ def train(net, data, params):
 
             # forward + backward + optimize
             output_tensor = net(input_tensor)
+            output_tensor = smax(output_tensor)
 
             if params['debug'] and 'output' in params['debug'] and mini == 29:
                 output = smax(output_tensor)
@@ -148,7 +149,7 @@ def train(net, data, params):
             # Ignore all but the targeted indexes for the loss function.
             #tmp_out = output_tensor[:,params['target_indexes'],...]
 
-            tmp_out = output_tensor
+            tmp_out = output_tensor[:,1,...]
             loss = criterion(tmp_out, truth_tensor)
 
 
