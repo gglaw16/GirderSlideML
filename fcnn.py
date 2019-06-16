@@ -112,7 +112,27 @@ class net(nn.Module):
                 x = layer(x)    
         
         return x
-        
+
+    
+    def schedule_parameters(self):
+        schedule = self.schedule[self.schedule_idx]
+        num_layers = schedule['layers']
+
+        for i in range(num_layers):
+            layer = self.layers[i]
+            if not isinstance(layer, nn.BatchNorm2d):
+                for param in layer.parameters():
+                    yield param
+
+        # Post layers that get executed for every schedule.
+        for i in range(self.num_pre_layers, len(self.layers)):
+            layer = self.layers[i]
+            if not isinstance(layer, nn.BatchNorm2d):
+                for param in layer.parameters():
+                    yield param
+
+
+    
 
 if __name__ == "__main__":
     net = net()

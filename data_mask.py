@@ -56,7 +56,7 @@ import pylaw
 try:
     import matplotlib.pyplot as plt
 except:
-    print("no ploting")
+    print("no plotting")
     
 # ============= external
 # load_data(params)

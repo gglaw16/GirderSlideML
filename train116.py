@@ -3,7 +3,7 @@
 
 
 
-
+import signal
 import sys
 import shutil
 import torch
@@ -126,7 +126,7 @@ def train(net, data, params):
         
         # learning rate change with batch size?
         # create your optimizer
-        optimizer = optim.SGD(net.parameters(), lr=params['rate'])
+        optimizer = optim.SGD(net.schedule_parameters(), lr=params['rate'])
 
         # loss function
         criterion = torch.nn.MSELoss(reduce=False)
@@ -141,7 +141,7 @@ def train(net, data, params):
             output_tensor = smax(output_tensor)
 
             if params['debug'] and 'output' in params['debug'] and mini == 29:
-                output = smax(output_tensor)
+                output = output_tensor
                 tmp = (output[0,1]).cpu().detach().numpy()
                 cv2.imwrite("output%d.png"%idx, tmp*255)
             
@@ -405,8 +405,7 @@ def test_sample_batch(data, net, params):
 
 
 
-def main_train(params):
-    net = load_net(params)
+def main_train(net, params):
     if params['shock'] > 0.0:
         net_utils.shock_weights(net, params['shock'])
     if torch.cuda.is_available():
@@ -484,52 +483,42 @@ def load_net(params):
     return net
 
 
+def exit_gracefully(signum, frame):
+    # restore the original signal handler as otherwise evil things will happen
+    # in raw_input when CTRL+C is pressed, and our signal handler is not re-entrant
+    signal.signal(signal.SIGINT, original_sigint)
+    
+    try:
+        if raw_input("\nReally quit? (y/n)> ").lower().startswith('y'):
+            if raw_input("\nSave net? (y/n)> ").lower().startswith('y'):
+                global net, params
+                filename = os.path.join(params['folder_path'], params['target_group'],
+                                        'model%d.pth'%params['input_level'])
+                print("Saving network " + filename)
+                torch.save(net.state_dict(), filename)
+
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("Ok ok, quitting")
+        sys.exit(1)
+
+    # This path would restart training.
+    # restore the exit gracefully handler here
+    signal.signal(signal.SIGINT, exit_gracefully)
+
+
+
 
     
 if __name__ == '__main__':
-    params = {}
+    with open('params.json') as json_file:
+        params = json.load(json_file)    
+    net = load_net(params)
+
     
-    '''
-    # We get these from the net now
-    #params['rf_stride'] = 4
-    #params['rf_size'] = 116
-    params['min_augmentation_scale'] = 0.6
-    params['data_path'] = '../DigitalGlobe/images'  # ancestor directory for png files.
-    params['folder_path'] = '.'  # this is the path to store incremental results.
-    params['truth_radius'] = 30
-    params['ignore_radius'] = 60
-    params['gpu'] = 0 #3 # 0
-    params['num_epochs'] = 100
-    # Batches / Epoch: Load a new image every # batchs
-    params['num_batches'] = 30
-    # resample batch training images every # cycles
-    params['num_minibatches'] = 8 #20
-    params['rate'] = 0.005
-    params['heatmap_decay'] = 0.2
-    params['debug'] = False
-    params['target_group'] = 'fcnn116'
-    params['max_num_training_images'] = 5000
-    # impacts gpu memory usage
-    params['input_size'] = 116
-    params['batch_size'] = 64
+    # store the original SIGINT handler
+    original_sigint = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, exit_gracefully)
 
-    params['image_cache_dir'] = '../cached_images'
-    params['chip_cache_dir'] = '../cached_chips'
-    params['input_level'] = 3
-    params['schedule'] = 4
-
-    with open('params.json', 'w') as outfile: json.dump(params, outfile)
-    '''
-    with open('params.json') as json_file: params = json.load(json_file)
-
-
-    main_train(params)
-    sys.exit()
-
-
-
-    print('done')
-    
-    
-    
-
+    main_train(net, params)
