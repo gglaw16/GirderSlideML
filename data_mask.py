@@ -929,8 +929,8 @@ class TrainingData:
         # Save so the program can update chip errors.
         self.batch_chips = pos_chips + neg_chips
     
-        if params['debug']:
-            for idx in range(len(input_np)):
+        if params['debug'] and 'batch2' in params['debug']:
+            for idx in range(len(inputs)):
                 image = inputs[idx][:,:,0:2]
                 cv2.imwrite("debug/batch_%d_image.png"%idx, image)
                 prediction = inputs[idx][:,:,3]
