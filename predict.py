@@ -14,6 +14,7 @@ import json
 try:
     import matplotlib.pyplot as plt
 except:
+    plt = None
     print("no plotting")
     
             

@@ -406,7 +406,8 @@ def test_sample_batch(data, net, params):
 
 def main_train(params):
     net = load_net(params)
-    net_utils.shock_weights(net, params['shock'])
+    if params['shock'] > 0.0:
+        net_utils.shock_weights(net, params['shock'])
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
 
