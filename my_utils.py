@@ -103,23 +103,6 @@ def upload_batch_to_girder(batch, name):
     g.upload_images(images, name, '5abe931f3f24e537140e6ea6')
 
 
-
-
-# network stuff.
-
-def shock_weights(net):
-    for layer in net.layers:
-        if type(layer).__name__ == 'Conv2d':
-            shock_layer_weights(layer)
-
-def shock_layer_weights(layer):
-    if type(layer).__name__ != 'Conv2d':
-        print("--- Warning: Can only shock Conv layers")
-    shape = layer.weight.size()
-    noise = torch.randn(shape)
-    noise.normal_(std=0.1)
-    layer.weight.data.add_(noise)
-
 def distance(p0, p1):
     return math.sqrt((p0[0] - p1[0])**2 + (p0[1] - p1[1])**2)
 

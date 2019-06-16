@@ -19,8 +19,23 @@ from pprint import pprint
 
 
 
+# network stuff.
+
+def shock_weights(net, std=0.1):
+    for layer in net.layers:
+        if type(layer).__name__ == 'Conv2d':
+            shock_layer_weights(layer, std)
+
+def shock_layer_weights(layer, std=0.1):
+    if type(layer).__name__ != 'Conv2d':
+        print("--- Warning: Can only shock Conv layers")
+    shape = layer.weight.size()
+    noise = torch.randn(shape)
+    noise.normal_(std=0.1)
+    layer.weight.data.add_(noise)
 
 
+"""
 def find_plane(planes, (x,y), precision=0.5):
     for plane in planes:
         if 'bbox' in plane:
@@ -46,7 +61,7 @@ def find_plane(planes, (x,y), precision=0.5):
             if abs(x-center[0]) < radius and abs(y-center[1]) < radius:\
                return plane
     return None
-
+"""
 
 
 

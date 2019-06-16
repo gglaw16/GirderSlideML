@@ -139,6 +139,11 @@ def train(net, data, params):
             # forward + backward + optimize
             output_tensor = net(input_tensor)
 
+            if params['debug'] and 'output' in params['debug'] and mini == 29:
+                output = smax(output_tensor)
+                tmp = (output[0,1]).cpu().detach().numpy()
+                cv2.imwrite("output%d.png"%idx, tmp*255)
+            
             # not needed with only one target
             # Ignore all but the targeted indexes for the loss function.
             #tmp_out = output_tensor[:,params['target_indexes'],...]
@@ -147,7 +152,7 @@ def train(net, data, params):
             loss = criterion(tmp_out, truth_tensor)
 
 
-            if params['debug'] and 'loss' in params['debug']:
+            if params['debug'] and 'loss' in params['debug'] and mini == 29:
                 tmp = loss.cpu().detach().numpy()
                 for idx in range(len(input_np)):
                     cv2.imwrite("loss1_%d.png"%idx, tmp[idx]*255)
@@ -157,7 +162,7 @@ def train(net, data, params):
             loss[ignore_mask_tensor>128] = 0.0
 
 
-            if params['debug'] and 'loss' in params['debug']:
+            if params['debug'] and 'loss' in params['debug'] and mini == 29:
                 tmp = loss.cpu().detach().numpy()
                 for idx in range(len(input_np)):
                     cv2.imwrite("loss2_%d.png"%idx, tmp[idx]*255)
@@ -187,21 +192,16 @@ def train(net, data, params):
                 #print("%d: loss: %.3f" % (mini + 1, running_loss))
             last_loss = running_loss
 
-        if params['debug'] and 'output' in params['debug']:
-            output = smax(output_tensor)
-            tmp = (output[0,1]).cpu().detach().numpy()
-            cv2.imwrite("output%d.png"%count, tmp*255)
-            print("cycle %d"%count)
-            count += 1    
-            
         if running_loss < start_loss:
-            # Save the weights
-            filename = os.path.join(params['folder_path'], params['target_group'], 'model%d.pth'%params['input_level'])
-            print("Saving network " + filename)
-            if os.path.isfile(filename):
-                shutil.move(filename, os.path.join(params['folder_path'], params['target_group'], \
-                                                   'model_backup.pth'))
-            if not params['debug']:
+            if not params['debug'] or len(params['debug']) == 0:
+                # Save the weights
+                filename = os.path.join(params['folder_path'], params['target_group'],
+                                        'model%d.pth'%params['input_level'])
+                print("Saving network " + filename)
+                if os.path.isfile(filename):
+                    shutil.move(filename, os.path.join(params['folder_path'],
+                                                       params['target_group'], \
+                                                       'model_backup.pth'))
                 torch.save(net.state_dict(), filename)
 
 
@@ -331,7 +331,6 @@ def main_test_images(params):
     # Load the network model
     print('loading net')
     net = load_net(params)    
-    #shock_weights(net)
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
     # Lock batch normalization
@@ -407,6 +406,7 @@ def test_sample_batch(data, net, params):
 
 def main_train(params):
     net = load_net(params)
+    net_utils.shock_weights(net, params['shock'])
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
 
