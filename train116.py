@@ -303,6 +303,7 @@ def test_noise(params):
     # Load the network model
     print('loading net')
     net = load_net(params)    
+    my_utils.reset_batch_norm(net)
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
 
@@ -434,10 +435,9 @@ def main_train(net, params):
         os.system('rm %s/debug/*.png'%params['target_group'])
         data.prune_chips()
 
-        if epoch%5 == 0:
-            params['rate'] *= 0.95
-            print("rate %f"%params['rate'])
-            data.save_chips()
+        params['rate'] *= 0.95
+        print("rate %f"%params['rate'])
+        data.save_chips()
             
 
 #=================================================================================
@@ -503,7 +503,7 @@ if __name__ == '__main__':
     with open('params.json') as json_file:
         params = json.load(json_file)    
     net = load_net(params)
-
+    net.train()
     
     # store the original SIGINT handler
     original_sigint = signal.getsignal(signal.SIGINT)
