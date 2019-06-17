@@ -401,7 +401,7 @@ class ImageData:
         #get prediction image if it exists
         prediction = None
         files = gc.listFile(self.item_id)
-        prediction_level = self.params['input_level']+1
+        prediction_level = self.params['input_level']+3
         for f in files:
             if f['name'] == 'prediction%d.png'%prediction_level:
                 prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%prediction_level)
