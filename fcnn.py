@@ -18,7 +18,7 @@ class net(nn.Module):
         
         layers = []
 
-    # TODO: add a fourth component? lower resolution results
+    # TODO: add a fourth component? lower resolution results DONE
         components = 4
         out_components = 32
         for i in range(4):

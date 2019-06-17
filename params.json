@@ -7,7 +7,7 @@
  "max_num_training_images": 5000,
  "min_augmentation_scale": 0.6,
  "num_epochs": 100,
- "debug": ["batch", "output"],
+ "debug": [],
  "gpu": 1,
  "num_batches": 30,
  "heatmap_decay": 0.2,
