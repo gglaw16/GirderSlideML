@@ -104,12 +104,6 @@ def train(net, data, params):
         print("== Batch %d"%batch)
         input_np, truth_np, dont_care_np = data.sample_batch(params)
 
-        if params['debug'] and 'batch' in params['debug']:
-            for idx in range(len(input_np)):
-                cv2.imwrite("input_%d.png"%idx, input_np[idx][...,0:3])
-                cv2.imwrite("inputP_%d.png"%idx, input_np[idx][...,3])
-                cv2.imwrite("truth_%d.png"%idx, (truth_np[idx]*255).astype(np.uint8))
-        
         # Scale to 0->1
         input_np = input_np.astype(np.float32)/255.0
         input_np = np.moveaxis(input_np, 3, 1)
@@ -130,7 +124,7 @@ def train(net, data, params):
 
         # loss function
         criterion = torch.nn.MSELoss(reduce=False)
-    
+
         for mini in range(params['num_minibatches']):  # loop over the dataset multiple times
             running_loss = 0.0
             # zero the parameter gradients
@@ -140,33 +134,35 @@ def train(net, data, params):
             output_tensor = net(input_tensor)
             output_tensor = smax(output_tensor)
 
-            if params['debug'] and 'output' in params['debug'] and mini == 29:
-                output = output_tensor
-                tmp = (output[0,1]).cpu().detach().numpy()
-                cv2.imwrite("output%d.png"%idx, tmp*255)
-            
-            # not needed with only one target
-            # Ignore all but the targeted indexes for the loss function.
-            #tmp_out = output_tensor[:,params['target_indexes'],...]
-
             tmp_out = output_tensor[:,1,...]
             loss = criterion(tmp_out, truth_tensor)
 
+            if params['debug'] and mini == params['num_minibatches']-1:
+                if 'output' in params['debug']:
+                    output = output_tensor
+                    for idx in range(len(input_np)):
+                        tmp = (output[idx,1]).cpu().detach().numpy()
+                        cv2.imwrite("d%d_output.png"%idx, tmp*255)
+            
+                if 'batch' in params['debug']:
+                    for idx in range(len(input_np)):
+                        tmp = np.moveaxis(input_np[idx], 0,2)*255
+                        cv2.imwrite("d%d_input.png"%idx, tmp[...,0:3])
+                        cv2.imwrite("d%d_inputP.png"%idx, tmp[...,3])
+                        cv2.imwrite("d%d_truth.png"%idx, (truth_np[idx]*255).astype(np.uint8))
 
-            if params['debug'] and 'loss' in params['debug'] and mini == 29:
-                tmp = loss.cpu().detach().numpy()
-                for idx in range(len(input_np)):
-                    cv2.imwrite("loss1_%d.png"%idx, tmp[idx]*255)
-
+                if 'loss' in params['debug']:
+                    tmp = loss.cpu().detach().numpy()
+                    for idx in range(len(input_np)):
+                        cv2.imwrite("d%d_loss1.png"%idx, tmp[idx]*255)
 
             # Zero out mask pixels.
             loss[ignore_mask_tensor>128] = 0.0
 
-
             if params['debug'] and 'loss' in params['debug'] and mini == 29:
                 tmp = loss.cpu().detach().numpy()
                 for idx in range(len(input_np)):
-                    cv2.imwrite("loss2_%d.png"%idx, tmp[idx]*255)
+                    cv2.imwrite("d%d_loss2.png"%idx, tmp[idx]*255)
 
             loss_scalar = loss.mean()
             
@@ -205,6 +201,7 @@ def train(net, data, params):
                                                        'model_backup.pth'))
                 torch.save(net.state_dict(), filename)
 
+                
 
 
 def save_debug_input(input_tensor, root_name):
@@ -411,14 +408,6 @@ def main_train(net, params):
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
 
-    # A hacky way to train up through the levels.
-    net.set_schedule(params['schedule'])
-    params['rf_size'] = net.get_rf_size()
-    params['rf_stride'] = net.get_rf_stride()
-    
-    
-
-
     data = d.TrainingData(params)
 
     #for epoch in range(params['num_epochs']):
@@ -439,19 +428,6 @@ def main_train(net, params):
         os.system('rm %s/debug/*.png'%params['target_group'])
         data.prune_chips()
 
-        # A hacky way to train up through the levels.
-        #if epoch >= 20 and schedule_idx < len(net.schedule):
-        #    epoch = 0
-        #    schedule_idx += 1
-        #    net.set_schedule(schedule_idx)
-        #    params['rf_size'] = net.get_rf_size()
-        #    params['rf_stride'] = net.get_rf_stride()
-        #    print("======= Moving to schedule %d, rf size = %d"%(schedule_idx, \
-        #                                                         net.get_rf_size()))
-        #    # Keep the chip errors, even though the are not completely valid anymore.
-        #    # The truth however is not the same shape. We have to recompute truth images.
-        #    data.recompute_chip_truth()
-
         if epoch%5 == 0:
             params['rate'] *= 0.95
             print("rate %f"%params['rate'])
@@ -461,6 +437,8 @@ def main_train(net, params):
 #=================================================================================
 def load_net(params):
     net = target.net()
+    if 'schedule' in params:
+        net.set_schedule(params['schedule'])
     params['rf_size'] = net.get_rf_size()
     params['rf_stride'] = net.get_rf_stride()
     
