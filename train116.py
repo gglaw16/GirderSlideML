@@ -190,7 +190,8 @@ def train(net, data, params):
             last_loss = running_loss
 
         if running_loss < start_loss:
-            if not params['debug'] or len(params['debug']) == 0:
+            #if not params['debug'] or len(params['debug']) == 0:
+            if True:
                 # Save the weights
                 filename = os.path.join(params['folder_path'], params['target_group'],
                                         'model%d.pth'%params['input_level'])
@@ -200,9 +201,14 @@ def train(net, data, params):
                                                        params['target_group'], \
                                                        'model_backup.pth'))
                 torch.save(net.state_dict(), filename)
-
+                schedule = net.schedule_idx
+                if schedule < 12:
+                    schedule += 1
+                    net.set_schedule(schedule)
+                    params['rf_size'] = net.get_rf_size()
+                    params['rf_stride'] = net.get_rf_stride()
+                    print("schedule = %d"%schedule)
                 
-
 
 def save_debug_input(input_tensor, root_name):
     print(" ---- saving %s"%root_name)
@@ -488,8 +494,12 @@ def exit_gracefully(signum, frame):
 
 
 
-    
+# 3 ok,  2 is not
 if __name__ == '__main__':
+    random.seed(5)
+    np.random.seed(5)
+    torch.manual_seed(5)
+
     with open('params.json') as json_file:
         params = json.load(json_file)    
     net = load_net(params)
@@ -500,3 +510,4 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, exit_gracefully)
 
     main_train(net, params)
+

@@ -59,9 +59,9 @@ class net(nn.Module):
         self.num_pre_layers = len(layers)
 
         # Layers that are on the end of all scheduled layers.
-        layers.append(nn.Conv2d(components, components, 1))
-        layers.append(nn.BatchNorm2d(components, affine=False))
-        layers.append(nn.LeakyReLU())
+        #layers.append(nn.Conv2d(components, components, 1))
+        #layers.append(nn.BatchNorm2d(components, affine=False))
+        #layers.append(nn.LeakyReLU())
         # final layer to get the output parameters
         # no relu or softmax (of course).
         # I put an extra NIN, because this layer cannot do much logic.

@@ -592,11 +592,11 @@ class TrainingData:
 
         neg_mask = error_map[:,:,2]
         if not neg_mask is None:
-            self.neg_chips += image_data.sample_chips(neg_mask, 20)
+            self.neg_chips += image_data.sample_chips(neg_mask, self.params['chips_per_epoch'])
 
         pos_mask = error_map[:,:,1]
         if not pos_mask is None:
-            self.pos_chips += image_data.sample_chips(pos_mask, 20)
+            self.pos_chips += image_data.sample_chips(pos_mask, self.params['chips_per_epoch'])
 
         # Move to the next image to load.
         self.image_data_index += 1
