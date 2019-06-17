@@ -15,7 +15,7 @@
  "num_minibatches": 50,
  "chips_per_epoch": 200,
  "input_level": 2,
- "rate": 0.001,
+ "rate": 0.0001,
  "schedule": 12,
  "batch_size": 200,
  "input_size": 132,
