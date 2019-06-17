@@ -56,7 +56,7 @@ import pylaw
 try:
     import matplotlib.pyplot as plt
 except:
-    print("no ploting")
+    print("no plotting")
     
 # ============= external
 # load_data(params)
@@ -592,11 +592,11 @@ class TrainingData:
 
         neg_mask = error_map[:,:,2]
         if not neg_mask is None:
-            self.neg_chips += image_data.sample_chips(neg_mask, 2)
+            self.neg_chips += image_data.sample_chips(neg_mask, self.params['chips_per_epoch'])
 
         pos_mask = error_map[:,:,1]
         if not pos_mask is None:
-            self.pos_chips += image_data.sample_chips(pos_mask, 2)
+            self.pos_chips += image_data.sample_chips(pos_mask, self.params['chips_per_epoch'])
 
         # Move to the next image to load.
         self.image_data_index += 1
@@ -929,8 +929,8 @@ class TrainingData:
         # Save so the program can update chip errors.
         self.batch_chips = pos_chips + neg_chips
     
-        if params['debug']:
-            for idx in range(len(input_np)):
+        if params['debug'] and 'batch2' in params['debug']:
+            for idx in range(len(inputs)):
                 image = inputs[idx][:,:,0:2]
                 cv2.imwrite("debug/batch_%d_image.png"%idx, image)
                 prediction = inputs[idx][:,:,3]

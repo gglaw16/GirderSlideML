@@ -3,7 +3,7 @@
 
 
 
-
+import signal
 import sys
 import shutil
 import torch
@@ -104,19 +104,13 @@ def train(net, data, params):
         print("== Batch %d"%batch)
         input_np, truth_np, dont_care_np = data.sample_batch(params)
 
-        if params['debug'] and 'batch' in params['debug']:
-            for idx in range(len(input_np)):
-                cv2.imwrite("input_%d.png"%idx, input_np[idx][...,0:3])
-                cv2.imwrite("inputP_%d.png"%idx, input_np[idx][...,3])
-                cv2.imwrite("truth_%d.png"%idx, (truth_np[idx]*255).astype(np.uint8))
-        
         # Scale to 0->1
         input_np = input_np.astype(np.float32)/255.0
         input_np = np.moveaxis(input_np, 3, 1)
-        truth_np = np.array(truth_np).astype(np.long)
+        truth_np = np.array(truth_np)
 
         input_tensor = torch.from_numpy(input_np).float()
-        truth_tensor = torch.from_numpy(truth_np).long()
+        truth_tensor = torch.from_numpy(truth_np).float()
         if torch.cuda.is_available():
             input_tensor = input_tensor.cuda(params['gpu'])
             truth_tensor = truth_tensor.cuda(params['gpu'])
@@ -126,11 +120,11 @@ def train(net, data, params):
         
         # learning rate change with batch size?
         # create your optimizer
-        optimizer = optim.SGD(net.parameters(), lr=params['rate'])
+        optimizer = optim.SGD(net.schedule_parameters(), lr=params['rate'])
 
         # loss function
-        criterion = torch.nn.CrossEntropyLoss(reduce=False)
-    
+        criterion = torch.nn.MSELoss(reduce=False)
+
         for mini in range(params['num_minibatches']):  # loop over the dataset multiple times
             running_loss = 0.0
             # zero the parameter gradients
@@ -138,29 +132,37 @@ def train(net, data, params):
 
             # forward + backward + optimize
             output_tensor = net(input_tensor)
+            output_tensor = smax(output_tensor)
 
-            # not needed with only one target
-            # Ignore all but the targeted indexes for the loss function.
-            #tmp_out = output_tensor[:,params['target_indexes'],...]
-
-            tmp_out = output_tensor
+            tmp_out = output_tensor[:,1,...]
             loss = criterion(tmp_out, truth_tensor)
 
+            if params['debug'] and mini == params['num_minibatches']-1:
+                if 'output' in params['debug']:
+                    output = output_tensor
+                    for idx in range(len(input_np)):
+                        tmp = (output[idx,1]).cpu().detach().numpy()
+                        cv2.imwrite("d%d_output.png"%idx, tmp*255)
+            
+                if 'batch' in params['debug']:
+                    for idx in range(len(input_np)):
+                        tmp = np.moveaxis(input_np[idx], 0,2)*255
+                        cv2.imwrite("d%d_input.png"%idx, tmp[...,0:3])
+                        cv2.imwrite("d%d_inputP.png"%idx, tmp[...,3])
+                        cv2.imwrite("d%d_truth.png"%idx, (truth_np[idx]*255).astype(np.uint8))
 
-            if params['debug'] and 'loss' in params['debug']:
-                tmp = loss.cpu().detach().numpy()
-                for idx in range(len(input_np)):
-                    cv2.imwrite("loss1_%d.png"%idx, tmp[idx]*255)
-
+                if 'loss' in params['debug']:
+                    tmp = loss.cpu().detach().numpy()
+                    for idx in range(len(input_np)):
+                        cv2.imwrite("d%d_loss1.png"%idx, tmp[idx]*255)
 
             # Zero out mask pixels.
             loss[ignore_mask_tensor>128] = 0.0
 
-
-            if params['debug'] and 'loss' in params['debug']:
+            if params['debug'] and 'loss' in params['debug'] and mini == 29:
                 tmp = loss.cpu().detach().numpy()
                 for idx in range(len(input_np)):
-                    cv2.imwrite("loss2_%d.png"%idx, tmp[idx]*255)
+                    cv2.imwrite("d%d_loss2.png"%idx, tmp[idx]*255)
 
             loss_scalar = loss.mean()
             
@@ -187,24 +189,26 @@ def train(net, data, params):
                 #print("%d: loss: %.3f" % (mini + 1, running_loss))
             last_loss = running_loss
 
-        if params['debug'] and 'output' in params['debug']:
-            output = smax(output_tensor)
-            tmp = (output[0,1]).cpu().detach().numpy()
-            cv2.imwrite("output%d.png"%count, tmp*255)
-            print("cycle %d"%count)
-            count += 1    
-            
         if running_loss < start_loss:
-            # Save the weights
-            filename = os.path.join(params['folder_path'], params['target_group'], 'model%d.pth'%params['input_level'])
-            print("Saving network " + filename)
-            if os.path.isfile(filename):
-                shutil.move(filename, os.path.join(params['folder_path'], params['target_group'], \
-                                                   'model_backup.pth'))
-            if not params['debug']:
+            #if not params['debug'] or len(params['debug']) == 0:
+            if True:
+                # Save the weights
+                filename = os.path.join(params['folder_path'], params['target_group'],
+                                        'model%d.pth'%params['input_level'])
+                print("Saving network " + filename)
+                if os.path.isfile(filename):
+                    shutil.move(filename, os.path.join(params['folder_path'],
+                                                       params['target_group'], \
+                                                       'model_backup.pth'))
                 torch.save(net.state_dict(), filename)
-
-
+                schedule = net.schedule_idx
+                if schedule < 12:
+                    schedule += 1
+                    net.set_schedule(schedule)
+                    params['rf_size'] = net.get_rf_size()
+                    params['rf_stride'] = net.get_rf_stride()
+                    print("schedule = %d"%schedule)
+                
 
 def save_debug_input(input_tensor, root_name):
     print(" ---- saving %s"%root_name)
@@ -299,6 +303,7 @@ def test_noise(params):
     # Load the network model
     print('loading net')
     net = load_net(params)    
+    my_utils.reset_batch_norm(net)
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
 
@@ -331,7 +336,6 @@ def main_test_images(params):
     # Load the network model
     print('loading net')
     net = load_net(params)    
-    #shock_weights(net)
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
     # Lock batch normalization
@@ -405,18 +409,11 @@ def test_sample_batch(data, net, params):
 
 
 
-def main_train(params):
-    net = load_net(params)
+def main_train(net, params):
+    if params['shock'] > 0.0:
+        net_utils.shock_weights(net, params['shock'])
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
-
-    # A hacky way to train up through the levels.
-    net.set_schedule(params['schedule'])
-    params['rf_size'] = net.get_rf_size()
-    params['rf_stride'] = net.get_rf_stride()
-    
-    
-
 
     data = d.TrainingData(params)
 
@@ -438,28 +435,16 @@ def main_train(params):
         os.system('rm %s/debug/*.png'%params['target_group'])
         data.prune_chips()
 
-        # A hacky way to train up through the levels.
-        #if epoch >= 20 and schedule_idx < len(net.schedule):
-        #    epoch = 0
-        #    schedule_idx += 1
-        #    net.set_schedule(schedule_idx)
-        #    params['rf_size'] = net.get_rf_size()
-        #    params['rf_stride'] = net.get_rf_stride()
-        #    print("======= Moving to schedule %d, rf size = %d"%(schedule_idx, \
-        #                                                         net.get_rf_size()))
-        #    # Keep the chip errors, even though the are not completely valid anymore.
-        #    # The truth however is not the same shape. We have to recompute truth images.
-        #    data.recompute_chip_truth()
-
-        if epoch%5 == 0:
-            params['rate'] *= 0.95
-            print("rate %f"%params['rate'])
-            data.save_chips()
+        params['rate'] *= 0.95
+        print("rate %f"%params['rate'])
+        data.save_chips()
             
 
 #=================================================================================
 def load_net(params):
     net = target.net()
+    if 'schedule' in params:
+        net.set_schedule(params['schedule'])
     params['rf_size'] = net.get_rf_size()
     params['rf_stride'] = net.get_rf_stride()
     
@@ -482,52 +467,47 @@ def load_net(params):
     return net
 
 
-
+def exit_gracefully(signum, frame):
+    # restore the original signal handler as otherwise evil things will happen
+    # in raw_input when CTRL+C is pressed, and our signal handler is not re-entrant
+    signal.signal(signal.SIGINT, original_sigint)
     
+    try:
+        if raw_input("\nReally quit? (y/n)> ").lower().startswith('y'):
+            if raw_input("\nSave net? (y/n)> ").lower().startswith('y'):
+                global net, params
+                filename = os.path.join(params['folder_path'], params['target_group'],
+                                        'model%d.pth'%params['input_level'])
+                print("Saving network " + filename)
+                torch.save(net.state_dict(), filename)
+
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("  Ok ok, quitting, chill -_-")
+        sys.exit(1)
+
+    # This path would restart training.
+    # restore the exit gracefully handler here
+    signal.signal(signal.SIGINT, exit_gracefully)
+
+
+
+
+# 3 ok,  2 is not
 if __name__ == '__main__':
-    params = {}
+    random.seed(5)
+    np.random.seed(5)
+    torch.manual_seed(5)
+
+    with open('params.json') as json_file:
+        params = json.load(json_file)    
+    net = load_net(params)
+    net.train()
     
-    '''
-    # We get these from the net now
-    #params['rf_stride'] = 4
-    #params['rf_size'] = 116
-    params['min_augmentation_scale'] = 0.6
-    params['data_path'] = '../DigitalGlobe/images'  # ancestor directory for png files.
-    params['folder_path'] = '.'  # this is the path to store incremental results.
-    params['truth_radius'] = 30
-    params['ignore_radius'] = 60
-    params['gpu'] = 0 #3 # 0
-    params['num_epochs'] = 100
-    # Batches / Epoch: Load a new image every # batchs
-    params['num_batches'] = 30
-    # resample batch training images every # cycles
-    params['num_minibatches'] = 8 #20
-    params['rate'] = 0.005
-    params['heatmap_decay'] = 0.2
-    params['debug'] = False
-    params['target_group'] = 'fcnn116'
-    params['max_num_training_images'] = 5000
-    # impacts gpu memory usage
-    params['input_size'] = 116
-    params['batch_size'] = 64
+    # store the original SIGINT handler
+    original_sigint = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, exit_gracefully)
 
-    params['image_cache_dir'] = '../cached_images'
-    params['chip_cache_dir'] = '../cached_chips'
-    params['input_level'] = 3
-    params['schedule'] = 4
-
-    with open('params.json', 'w') as outfile: json.dump(params, outfile)
-    '''
-    with open('params.json') as json_file: params = json.load(json_file)
-
-
-    main_train(params)
-    sys.exit()
-
-
-
-    print('done')
-    
-    
-    
+    main_train(net, params)
 

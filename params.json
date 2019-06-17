@@ -7,16 +7,18 @@
  "max_num_training_images": 5000,
  "min_augmentation_scale": 0.6,
  "num_epochs": 100,
- "debug": false,
- "gpu": 0,
+ "debug": ["batch", "output"],
+ "gpu": 1,
  "num_batches": 30,
  "heatmap_decay": 0.2,
  "image_cache_dir": "../cached_images",
- "num_minibatches": 12,
- "input_level": 2,
- "rate": 0.00005,
- "schedule": 8,
- "batch_size": 64,
- "input_size": 116
+ "num_minibatches": 50,
+ "chips_per_epoch": 200,
+ "input_level": 1,
+ "rate": 0.0005,
+ "schedule": 2,
+ "batch_size": 200,
+ "input_size": 132,
+ "shock": 0.0
 }
 

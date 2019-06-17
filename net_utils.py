@@ -19,8 +19,23 @@ from pprint import pprint
 
 
 
+# network stuff.
+
+def shock_weights(net, std=0.1):
+    for layer in net.layers:
+        if type(layer).__name__ == 'Conv2d':
+            shock_layer_weights(layer, std)
+
+def shock_layer_weights(layer, std=0.1):
+    if type(layer).__name__ != 'Conv2d':
+        print("--- Warning: Can only shock Conv layers")
+    shape = layer.weight.size()
+    noise = torch.randn(shape)
+    noise.normal_(std=0.1)
+    layer.weight.data.add_(noise)
 
 
+"""
 def find_plane(planes, (x,y), precision=0.5):
     for plane in planes:
         if 'bbox' in plane:
@@ -46,7 +61,7 @@ def find_plane(planes, (x,y), precision=0.5):
             if abs(x-center[0]) < radius and abs(y-center[1]) < radius:\
                return plane
     return None
-
+"""
 
 
 
@@ -285,6 +300,8 @@ def execute_large_image(net, image, params):
 
     # Parameter to grid up the image to execute in pieces.
     panel_size = 116
+    if 'panel_size' in params:
+        panel_size = params['panel_size']
     # overlap due to convolution
     stride = net.get_rf_stride()
     in_overlap = net.get_rf_size() - stride 
@@ -301,7 +318,7 @@ def execute_large_image(net, image, params):
     in_margin = int(in_overlap/2)
     # allocate
     in_pad = np.ones((in_shape[0]+in_overlap, in_shape[1]+in_overlap, 4), dtype=np.uint8) * 128
-    # copy the inpout into the new array
+    # copy the input into the new array
     in_pad[in_margin:in_margin+in_shape[0], in_margin:in_margin+in_shape[1], :] = image
     in_image = in_pad
     # the in_shape is now bigger because of the padding.
