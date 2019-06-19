@@ -68,7 +68,7 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
     
-    prediction_level = params['input_level']+1
+    prediction_level = params['input_level']+3
     prediction = g.get_image_file(gc,item_id,'prediction%d.png'%prediction_level)
     if prediction is None:
         image = np.dstack((image, np.zeros(image.shape[:-1])))

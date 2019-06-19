@@ -269,7 +269,8 @@ def execute_image(net, image, params):
 
     # Now do the pytorch stuff
     image_tensor = torch.from_numpy(image).float()
-    image_tensor = image_tensor.cuda(params['gpu'])
+    if torch.cuda.is_available():
+        image_tensor = image_tensor.cuda(params['gpu'])
     #image_variable = Variable(image_tensor)
     output = net(image_tensor)
 

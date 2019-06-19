@@ -369,10 +369,17 @@ class ImageData:
         output_spacing = input_spacing * self.params['rf_stride']
         output_dim_x = int(self.x_dim / output_spacing)
         output_dim_y = int(self.y_dim / output_spacing)
-        rgb_mask = cv2.resize(rgb_mask, (output_dim_x, output_dim_y), interpolation=cv2.INTER_NEAREST)
-        error_map = cv2.resize(error_map, (output_dim_x, output_dim_y), interpolation=cv2.INTER_LINEAR)
+        #coordinate system for rgb mask bc too big at high res
+        rgb_mask_spacing_x = output_dim_x/rgb_mask.shape[1]
+        rgb_mask_spacing_y = output_dim_y/rgb_mask.shape[0]
+        #rgb_mask = cv2.resize(rgb_mask, (output_dim_x, output_dim_y), interpolation=cv2.INTER_NEAREST)
+        
+        #making yet another coordinate system for the error map bc this is too big at high res
+        error_map_spacing_x = self.x_dim / error_map.shape[1]
+        error_map_spacing_y = self.y_dim / error_map.shape[0]
+        #error_map = cv2.resize(error_map, (output_dim_x, output_dim_y), interpolation=cv2.INTER_LINEAR)
 
-            
+
         # Compute the size of the input chip we will need.
         # Augmentation shrinks the chip so we have to save a larger orginal image here.
         # We also have to leave enough padding for rotsation augmentation
@@ -382,6 +389,10 @@ class ImageData:
         out_chip_size = int(in_chip_size * input_spacing / output_spacing)
         out_chip_margin = int(math.ceil(out_chip_size / 2))
         
+        #find the margins for the error map
+        error_map_margin_x = int(out_chip_margin * error_map_spacing_x / output_spacing)
+        error_map_margin_y = int(out_chip_margin * error_map_spacing_y / output_spacing)
+        
         # Get a list of sample centers (output / truth coordinates).
         # pylaw sample requires a normalized pdf.
         # make a list of random floats as samples.
@@ -389,19 +400,26 @@ class ImageData:
         samples.sort()
         points = np.zeros((sample_count,2))
         # Shrink the map to avoid sampling margins.
-        error_map = error_map[out_chip_margin:-out_chip_margin,
-                              out_chip_margin:-out_chip_margin]
+        error_map = error_map[error_map_margin_y:-error_map_margin_y,
+                              error_map_margin_x:-error_map_margin_x]
         # find the samples using an optimized c function.
         error_map = error_map.astype(np.float64)
         error_map /= np.sum(error_map)
         pylaw.sample(error_map, samples, points)
+        
+        #Loop through the points and multiply each coordinate by error_map_spacing_x / output_spacing
+        for point in points:
+            point[1] *= error_map_spacing_x / output_spacing
+            point[0] *= error_map_spacing_y / output_spacing
+
+        
         #points, _ = pylaw2(error_map, 20, sample_count, margin=out_chip_margin)
 
         # now crop the chips and save them in the image data.
         #get prediction image if it exists
         prediction = None
         files = gc.listFile(self.item_id)
-        prediction_level = self.params['input_level']+1
+        prediction_level = self.params['input_level']+3
         for f in files:
             if f['name'] == 'prediction%d.png'%prediction_level:
                 prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%prediction_level)
@@ -446,7 +464,15 @@ class ImageData:
             out_x0 = int(out_x - out_chip_size/2)
             out_y0 = int(out_y - out_chip_size/2)
 
-            truth = rgb_mask[out_y0:out_y0+out_chip_size, out_x0:out_x0+out_chip_size,:]
+            rgb_chip_sizex = out_chip_size/rgb_mask_spacing_x
+            rgb_chip_sizey = out_chip_size/rgb_mask_spacing_y
+            rgb_out_y0 = out_y0/rgb_mask_spacing_y
+            rgb_out_x0 = out_x0/rgb_mask_spacing_x
+
+            truth = rgb_mask[rgb_out_y0:rgb_out_y0+rgb_chip_sizey, rgb_out_x0:rgb_out_x0+rgb_chip_sizex,:]
+            
+            truth = cv2.resize(truth, (out_chip_size, out_chip_size), interpolation=cv2.INTER_NEAREST)            
+
             
             chip_data = ChipData(image, truth, (x,y), self, input_spacing)
             new_chips.append(chip_data)
