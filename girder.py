@@ -9,8 +9,10 @@ import sys
 import math
 import girder_client
 import pdb
-import urllib2
+#import urllib2
 import my_utils
+import urllib.request
+import urllib.error
 
 GIRDER_URL = 'https://images.slide-atlas.org'
 GIRDER_USERNAME = 'law12019'
@@ -284,19 +286,19 @@ def get_image_cutout(gc, image_id, center, width, height, scale=1, cache='cache'
     if os.path.isfile(cache_filepath):
         return cv2.imread(cache_filepath)
         
-    req = urllib2.Request(chip_url)
+    req = urllib.request.Request(chip_url)
     req.add_header('Girder-Token', gc.token)
     # intermitently does not work. Repeat and it does (not really)
     retry = 1
     while retry > 0:
         try:
-            resp = urllib2.urlopen(req)
+            resp = urllib.request.urlopen(req)
             image = np.asarray(bytearray(resp.read()), dtype="uint8")
             image = cv2.imdecode(image, cv2.IMREAD_COLOR)
             # cache for fast local re read.
             cv2.imwrite(cache_filepath, image)
             return image
-        except urllib2.HTTPError, err:
+        except urllib.error.HTTPError as err:
             if err.code == 400:
                 print("Bad request!")
             elif err.code == 404:
@@ -322,14 +324,14 @@ def get_image_file(gc, item_id, filename, cache='cache'):
             file_id = file_obj['_id']
 
             url = GIRDER_URL + "/api/v1/file/" + file_id + "/download" #?contentDisposition=attachment
-            req = urllib2.Request(url)
+            req = urllib.request.Request(url)
             req.add_header('Girder-Token', gc.token)
             try:
-                resp = urllib2.urlopen(req)
+                resp = urllib.request.urlopen(req)
                 image = np.asarray(bytearray(resp.read()), dtype="uint8")
                 image = cv2.imdecode(image, cv2.IMREAD_COLOR)
                 return image
-            except urllib2.HTTPError, err:
+            except urllib.error.HTTPError as err:
                 if err.code == 400:
                     print("Bad request!")
                 elif err.code == 404:
@@ -437,17 +439,17 @@ def get_large_cutout(image_id, level=0, region=None, progress=None, gc=None):
             yo = y - i_bds[2]
             #.... get GIRDER_URL from gc ....
             tile_url = GIRDER_URL+"/api/v1/item/%s/tiles/zxy/%d/%d/%d"%(image_id,g_level,x,y)
-            req = urllib2.Request(tile_url)
+            req = urllib.request.Request(tile_url)
             req.add_header('Girder-Token', gc.token)
             count1 = count1 + 1
             count2 = count2 + 1
             try:
-                resp = urllib2.urlopen(req)
+                resp = urllib.request.urlopen(req)
                 image = np.asarray(bytearray(resp.read()), dtype="uint8")
                 image = cv2.imdecode(image, cv2.IMREAD_COLOR)
                 # copy into region.
                 region[yo*t_y:(yo+1)*t_y, xo*t_x:(xo+1)*t_x] = image
-            except urllib2.HTTPError, err:
+            except urllib.error.HTTPError as err:
                 if err.code == 400:
                     print("Bad request!")
                 elif err.code == 404:
@@ -648,15 +650,15 @@ def download_files_from_item_id(image_id, dir_path, gc=None):
         file_name = file_info['name']
         print(file_name)
         url = GIRDER_URL + "/api/v1/file/" + file_id + "/download"
-        req = urllib2.Request(url)
+        req = urllib.request.Request(url)
         req.add_header('Girder-Token', gc.token)
         try:
-            resp = urllib2.urlopen(req)
+            resp = urllib.request.urlopen(req)
             #image = np.asarray(bytearray(resp.read()), dtype="uint8")
             file_path = os.path.join(dir_path, file_name)
             with open(file_path, 'wb+') as f:
                 f.write(resp.read())
-        except urllib2.HTTPError, err:
+        except urllib.error.HTTPError as err:
             if err.code == 400:
                 print("Bad request!")
             elif err.code == 404:

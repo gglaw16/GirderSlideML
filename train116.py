@@ -15,7 +15,7 @@ import torch.optim as optim
 import fcnn116 as target_last
 import fcnn as target
 import pdb
-import ipdb
+#import ipdb
 import scipy.misc
 import csv
 import random
@@ -32,7 +32,6 @@ import data_mask as d
 import net_utils
 #from adversarial import *
 import json
-
 
 
 # Just generate the output map for the all the loaded iamges.
@@ -202,12 +201,14 @@ def train(net, data, params):
                                                        'model_backup.pth'))
                 torch.save(net.state_dict(), filename)
                 schedule = net.schedule_idx
+                '''
                 if schedule < 12:
                     schedule += 1
                     net.set_schedule(schedule)
                     params['rf_size'] = net.get_rf_size()
                     params['rf_stride'] = net.get_rf_stride()
                     print("schedule = %d"%schedule)
+                '''
                 
 
 def save_debug_input(input_tensor, root_name):

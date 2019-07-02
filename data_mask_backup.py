@@ -266,7 +266,7 @@ class ChipData:
                              truth_size, rotation=rotation, \
                              mirror=mirror, scale=scale, pad_value=0, \
                              interpolation=cv2.INTER_NEAREST)
-        ignore = np.invert(truth[...,3])
+        ignore = truth[...,0]
 
         # at some stage, pixles are interpolated 
         truth[truth>128] = 255
@@ -369,9 +369,11 @@ class ImageData:
         output_spacing = input_spacing * self.params['rf_stride']
         output_dim_x = int(self.x_dim / output_spacing)
         output_dim_y = int(self.y_dim / output_spacing)
-        #coordinate system for rgb mask bc too big at high res
+        # coordinate system for rgb mask bc too big at high res
+        # WARNING: All other spacing are units of pixels.  This is units of out_pixels.
         rgb_mask_spacing_x = output_dim_x/rgb_mask.shape[1]
         rgb_mask_spacing_y = output_dim_y/rgb_mask.shape[0]
+        # We cannot resample the mask because it can be too big at high res.
         #rgb_mask = cv2.resize(rgb_mask, (output_dim_x, output_dim_y), interpolation=cv2.INTER_NEAREST)
         
         #making yet another coordinate system for the error map bc this is too big at high res
