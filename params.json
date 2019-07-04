@@ -16,7 +16,7 @@
  "chips_per_epoch": 200,
  "input_level": 1,
  "rate": 0.001,
- "schedule": 2,
+ "schedule": 4,
  "batch_size": 200,
  "input_size": 132,
  "shock": 0.0

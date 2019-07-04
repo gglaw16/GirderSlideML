@@ -51,7 +51,7 @@ if __name__ == '__main__':
     params = {}
     with open('params.json') as json_file: params = json.load(json_file)
 
-    gc = g.get_gc()
+    gc = g.get_gc() 
     
     #item_id = '5915d969dd98b578723a09c2' #c
     #item_id = '5915d9c1dd98b578723a09c5' #d

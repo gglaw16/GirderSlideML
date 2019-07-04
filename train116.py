@@ -202,7 +202,7 @@ def train(net, data, params):
                                                        'model_backup.pth'))
                 torch.save(net.state_dict(), filename)
                 schedule = net.schedule_idx
-                if schedule < 12:
+                if schedule < 12 and batch%20 == 1:
                     schedule += 1
                     net.set_schedule(schedule)
                     params['rf_size'] = net.get_rf_size()
