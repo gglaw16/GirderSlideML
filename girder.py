@@ -205,7 +205,16 @@ def get_annotation_id_from_name(image_id, name, gc):
     else:
         return None
 
-
+# get an annotation location from its id
+# returns center, width, and height
+def get_annotation_loc_from_id(annotation_id, gc):
+    gc = get_gc(gc)
+    resp = gc.get("annotation/%s" %annotation_id)
+    if len(resp) > 0:
+        elements = resp['annotation']['elements'][0]
+        return elements['center'],elements['width'],elements['height']
+    else:
+        return None
 
 # returns the first decendant image with a matching name.
 def get_decendant_item_id(ancestor_id, ancestor_type, item_name, gc=None):
