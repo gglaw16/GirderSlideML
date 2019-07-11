@@ -9,8 +9,9 @@ import sys
 import math
 import girder_client
 import pdb
-import urllib2
+#import urllib2
 import my_utils
+import urllib2
 
 GIRDER_URL = 'https://images.slide-atlas.org'
 GIRDER_USERNAME = 'law12019'
@@ -296,7 +297,7 @@ def get_image_cutout(gc, image_id, center, width, height, scale=1, cache='cache'
             # cache for fast local re read.
             cv2.imwrite(cache_filepath, image)
             return image
-        except urllib2.HTTPError, err:
+        except urllib2.HTTPError as err:
             if err.code == 400:
                 print("Bad request!")
             elif err.code == 404:
@@ -327,9 +328,9 @@ def get_image_file(gc, item_id, filename, cache='cache'):
             try:
                 resp = urllib2.urlopen(req)
                 image = np.asarray(bytearray(resp.read()), dtype="uint8")
-                image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+                image = cv2.imdecode(image, cv2.IMREAD_UNCHANGED)
                 return image
-            except urllib2.HTTPError, err:
+            except urllib2.HTTPError as err:
                 if err.code == 400:
                     print("Bad request!")
                 elif err.code == 404:
@@ -447,7 +448,7 @@ def get_large_cutout(image_id, level=0, region=None, progress=None, gc=None):
                 image = cv2.imdecode(image, cv2.IMREAD_COLOR)
                 # copy into region.
                 region[yo*t_y:(yo+1)*t_y, xo*t_x:(xo+1)*t_x] = image
-            except urllib2.HTTPError, err:
+            except urllib2.HTTPError as err:
                 if err.code == 400:
                     print("Bad request!")
                 elif err.code == 404:
@@ -656,7 +657,7 @@ def download_files_from_item_id(image_id, dir_path, gc=None):
             file_path = os.path.join(dir_path, file_name)
             with open(file_path, 'wb+') as f:
                 f.write(resp.read())
-        except urllib2.HTTPError, err:
+        except urllib2.HTTPError as err:
             if err.code == 400:
                 print("Bad request!")
             elif err.code == 404:

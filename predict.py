@@ -9,7 +9,7 @@ import os
 import numpy as np
 import girder as g
 import net_utils
-import ipdb
+#import ipdb
 import json
 try:
     import matplotlib.pyplot as plt
@@ -88,12 +88,16 @@ if __name__ == '__main__':
     net_out = net_out.astype(np.uint8)
     net_out_flip = net_out[:,:,0]
     net_out = net_out[:,:,1]
+    #net_predict = np.dstack((net_out,net_out,np.zeros(net_out.shape),net_out))
+    
+    net_predict = net_out
+
     
     if plt:
         plt.figure(figsize=(8,10))
 
     
-    cv2.imwrite('prediction%d.png'%params['input_level'],net_out)
+    cv2.imwrite('prediction%d.png'%params['input_level'],net_predict)
     files = gc.listFile(item_id)
     for f in files:
         if f['name'] == 'prediction%d.png'%params['input_level']:

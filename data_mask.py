@@ -37,7 +37,7 @@
 
 import sys
 import pdb
-import ipdb
+#import ipdb
 import scipy.misc
 import random
 import csv
@@ -266,7 +266,7 @@ class ChipData:
                              truth_size, rotation=rotation, \
                              mirror=mirror, scale=scale, pad_value=0, \
                              interpolation=cv2.INTER_NEAREST)
-        ignore = truth[...,0]
+        ignore = np.invert(truth[...,3])
 
         # at some stage, pixles are interpolated 
         truth[truth>128] = 255
@@ -360,7 +360,7 @@ class ImageData:
         Returns a list of high error chips.
         """
         gc = g.get_gc()
-        
+
         rgb_mask = g.get_image_file(gc,self.item_id,'masks.png')
 
         # The mask apsect ratio got messed up somewhere.  pixels are not sqaure.
@@ -390,8 +390,8 @@ class ImageData:
         out_chip_margin = int(math.ceil(out_chip_size / 2))
         
         #find the margins for the error map
-        error_map_margin_x = int(out_chip_margin * error_map_spacing_x / output_spacing)
-        error_map_margin_y = int(out_chip_margin * error_map_spacing_y / output_spacing)
+        error_map_margin_x = int(out_chip_margin * output_spacing / error_map_spacing_x)
+        error_map_margin_y = int(out_chip_margin * output_spacing / error_map_spacing_y)
         
         # Get a list of sample centers (output / truth coordinates).
         # pylaw sample requires a normalized pdf.
@@ -425,7 +425,7 @@ class ImageData:
                 prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%prediction_level)
 
         #TEST TO SEE IF HIGH RES ACTUALLY WORKS, REMOVE LATER
-        prediction = rgb_mask
+        #prediction = rgb_mask
 
 
         if not(prediction is None):

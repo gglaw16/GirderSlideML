@@ -320,7 +320,8 @@ def execute_large_image(net, image, params):
     # allocate
     in_pad = np.ones((in_shape[0]+in_overlap, in_shape[1]+in_overlap, 4), dtype=np.uint8) * 128
     # copy the input into the new array
-    in_pad[in_margin:in_margin+in_shape[0], in_margin:in_margin+in_shape[1], :] = image
+    
+    in_pad[in_margin:in_margin+in_shape[0], in_margin:in_margin+in_shape[1], 0:3] = image
     in_image = in_pad
     # the in_shape is now bigger because of the padding.
     in_shape = in_image.shape
