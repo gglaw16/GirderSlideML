@@ -44,11 +44,11 @@ class net(nn.Module):
 
         
     def get_rf_size(self):
-        return 116
+        return 170
 
     
     def get_rf_stride(self):
-        return 4
+        return 8
 
     
     def forward(self, x):
