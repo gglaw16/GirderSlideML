@@ -8,7 +8,7 @@ import os
 import sys
 import math
 import girder_client
-import pdb
+import ipdb
 if sys.version_info[0] < 3:
     import urllib2
 else:
@@ -25,6 +25,145 @@ GIRDER_KEY = 'MJyaKIJxIkAb8l7OS7mffPE7QvB8H1WxDpyllzcG'
 GIRDER_CLIENT = None
 
 
+
+#===============================================================================
+# heat map stuff
+
+
+
+def get_heatmap_image(item_id, name, cache='cache', gc=None):
+    """
+    return an object containing the image, and metadata
+    """
+    gc = get_gc(gc)
+    resp = gc.get("annotation?itemId=%s&name=%s"%(item_id,name))
+    if len(resp) == 0:
+        return None
+    annot_id = resp[0]['_id']
+    resp = gc.get("annotation/%s"%annot_id)
+    annot = resp['annotation']
+    if len(annot['elements']) == 0:
+        return None
+    element = annot['elements'][0]
+    if element['type'] != "rectangle" or not 'user' in element:
+        return None
+    user = element['user']
+    file_id = None
+    if 'imageFileId' in user:
+        file_id = user['imageFileId']
+    elif 'imageUrl' in user:
+        file_id = user['imageUrl'].split('/')[6]
+    if file_id is None:
+        return None
+
+    img = get_file_image(gc, file_id=file_id, cache='cache')
+    center = element['center']
+    width = element['width']
+    height = element['height']
+    left = int(center[0]-(width/2))
+    right = int(left + width)
+    top = int(center[1]-(height/2)) 
+    bottom = int(top + height)
+    
+    return {"image": img,
+            "region": (left, top, right, bottom)}
+    
+
+
+
+def get_file(item_id, file_name, gc=None):
+    gc = get_gc(gc)
+
+    resp = gc.get("item/%s/files"%item_id)
+    for file_obj in resp:
+        if file_obj['name'] == file_name:
+            return file_obj
+
+    
+# Should we create an alpha channel if one does not exists?
+def file_to_heatmap(item_id, file_name, region=None, gc=None):
+    """
+    Turn a file, already uploaded in an item, into a heatmap.
+    region is (xmin, ymin, xmax, ymax)
+    """
+    gc = get_gc(gc)
+
+    if region is None:
+        # Put the heatmap over the whole image.
+        resp = gc.get("item/%s/tiles"%item_id)
+        region = (0, 0, resp['sizeX'], resp['sizeY'])
+
+    # Get the file id.
+    file_obj = get_file(item_id, file_name, gc)
+    if file_obj is None:
+        return
+    file_id = file_obj['_id']
+
+    # create the heatmap annotation
+    center = [(region[0]+region[2])*0.5, (region[1]+region[3])*0.5, 0]
+    width = region[2] - region[0]
+    height = region[3] - region[1]
+
+    url = GIRDER_URL + '/api/v1/file/%s/download?contentDisposition=inline'%file_id
+    annot = {"elements": [{"center": center,
+                           "height": height,
+                           "width": width,
+                           "user": {'imageUrl': url,
+                                    'imageFileId': file_id},
+                           "lineColor":"#00ffff",
+                           "rotation":0,
+                           "lineWidth":0,
+                           "type":"rectangle"}],
+             "name": file_name}
+    gc.post("annotation?itemId=%s"%item_id, json=annot)
+    
+
+# legacy
+def get_image_file(gc, item_id, filename, cache='cache'):
+    return get_file_image(gc, item_id=item_id, filename=filename, cache=cache)
+
+
+    
+def get_file_image(gc, file_id=None, item_id=None, filename=None, cache='cache'):
+
+    """
+    Either pass in the file_id, or the item_id and filename.
+    This is for loading an arbitrary image file from a girder item.
+    Just give the item id and the name of the image file you want.
+    A numpy array is returned.
+    """
+
+    if file_id is None:
+        if filename is None:
+            return None
+        file_obj = get_file(item_id, filename, gc=None)
+        if file_obj is None:
+            return None
+        file_id = file_obj['_id']
+
+    url = GIRDER_URL + "/api/v1/file/" + file_id + "/download" #?contentDisposition=attachment
+    req = urllib.request.Request(url)
+    req.add_header('Girder-Token', gc.token)
+    try:
+        resp = urllib.request.urlopen(req)
+        image = np.asarray(bytearray(resp.read()), dtype="uint8")
+        image = cv2.imdecode(image, cv2.IMREAD_UNCHANGED)
+        return image
+    except urllib.error.HTTPError as err:
+        if err.code == 400:
+            print("Bad request!")
+        elif err.code == 404:
+            print("Page not found!")
+        elif err.code == 403:
+            print("Access denied!")
+        else:
+            print("Something happened! Error code %d" % err.code)
+    return None
+
+
+
+
+#===============================================================================
 
 
 
@@ -74,6 +213,13 @@ def get_gc(gc=None, server="lemon"):
             GIRDER_CLIENT.authenticate(GIRDER_USERNAME, apiKey=GIRDER_KEY)
         gc = GIRDER_CLIENT
     return gc
+
+
+
+
+
+
+
 
 
 # Upload the image to girder (for debugging)
@@ -331,37 +477,6 @@ def get_image_cutout(gc, image_id, center, width, height, scale=1, cache='cache'
                 print("Something happened! Error code %d" % err.code)
             retry -= 1
             #time.sleep(1)
-    return None
-
-
-def get_image_file(gc, item_id, filename, cache='cache'):
-    """
-    This is for loading an arbitrary image file from a girder item.
-    Just give the item id and the name of the image file you want.
-    A numpy array is returned.
-    """
-    resp = gc.get('item/%s/files'%item_id)
-    for file_obj in resp:
-        if file_obj['name'] == filename:
-            file_id = file_obj['_id']
-
-            url = GIRDER_URL + "/api/v1/file/" + file_id + "/download" #?contentDisposition=attachment
-            req = urllib.request.Request(url)
-            req.add_header('Girder-Token', gc.token)
-            try:
-                resp = urllib.request.urlopen(req)
-                image = np.asarray(bytearray(resp.read()), dtype="uint8")
-                image = cv2.imdecode(image, cv2.IMREAD_UNCHANGED)
-                return image
-            except urllib.error.HTTPError as err:
-                if err.code == 400:
-                    print("Bad request!")
-                elif err.code == 404:
-                    print("Page not found!")
-                elif err.code == 403:
-                    print("Access denied!")
-                else:
-                    print("Something happened! Error code %d" % err.code)
     return None
 
 
@@ -717,4 +832,19 @@ def get_item_from_description(description, gc=None):
         if item['description'] == description:
             return item
     return None
+
+
+
+if __name__ == '__main__':
+    file_to_heatmap("5915da6add98b578723a09cb", "masks.png")
+    file_to_heatmap("5915da6add98b578723a09cb", "error_map.png")
+    file_to_heatmap("5915da6add98b578723a09cb", "error_map2.png")
+    file_to_heatmap("5915da6add98b578723a09cb", "error_map3.png")
+    file_to_heatmap("5915da6add98b578723a09cb", "error_map4.png")
+    #file_to_heatmap("5915da6add98b578723a09cb", "prediction1.png")
+    #file_to_heatmap("5915da6add98b578723a09cb", "prediction2.png")
+    file_to_heatmap("5915da6add98b578723a09cb", "prediction3.png")
+    file_to_heatmap("5915da6add98b578723a09cb", "prediction4.png")
+    file_to_heatmap("5915da6add98b578723a09cb", "prediction6.png")
+
 

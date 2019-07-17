@@ -14,8 +14,7 @@ import torch.optim as optim
 # The target path is hard coded.
 import fcnn116 as target_last
 import skip116 as target
-import pdb
-#import ipdb
+import ipdb
 import scipy.misc
 import csv
 import random

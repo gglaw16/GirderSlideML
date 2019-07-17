@@ -17,27 +17,18 @@
 
 
 # Branched from DigitalGlobe/data_json.py
-
-# Read annotations from girder (rather than from json file)
-
-
-
-# Initial goal.
-# From girder: only load positive images from partially annotated images (from grider)
-
-
-# Future Plan (bigger that I first set out for)
-# 1: Load ImageData from girder instead of json (taversing the folders and items might be slow)
-# 2: Load annotation from girder instead of from json.
-# 3: Load positive chips directly from girder (but cached locally)
-# 4: Load images for negative mining directly from girder, but cached locally.
-
+# Taylored to masks.
+#
+# Reads a mask from a "heatmap annotation" (expects "user['file_id']")
+# TODO: take a sub reagion of this mask to train on.
+#
+# Writes a prediction to a second heatmap.
+# this can start as simply a rectangle annotation.
 
 
 
 import sys
-import pdb
-#import ipdb
+import ipdb
 import scipy.misc
 import random
 import csv
@@ -643,10 +634,13 @@ class TrainingData:
         gc = g.get_gc()
         image_data = self.image_data[self.image_data_index]
 
-        error_map = g.get_image_file(gc,image_data.item_id,'error_map%d.png'%self.params['input_level'])
+        ipdb.set_trace()
+        error_map =  g.get_heatmap_image(image_data.item_id, 'error_map%d.png'%self.params['input_level'])
         if error_map is None:
-            masks = g.get_image_file(gc,image_data.item_id,'masks.png')
+            masks = g.get_heatmap_image(gc,image_data.item_id,'masks.png')
             error_map = masks
+        # TODO: User the region, so masks do not have to cover the entire slide.
+        error_map = error_map['image']
 
         neg_mask = error_map[:,:,2]
         if not neg_mask is None:
