@@ -12,13 +12,16 @@
   "num_batches": 30,
   "heatmap_decay": 0.2,
   "image_cache_dir": "../cached_images",
-  "num_minibatches": 50,
+  "num_minibatches": 20,
   "chips_per_epoch": 200,
-  "input_level": 4,
-  "rate": 0.001,
+  "input_level": 6,
+  "rate": 0.005,
   "schedule": 1,
   "batch_size": 200,
-  "input_size": 116,
-  "shock": 0.0
+  "input_dim": 116,
+  "shock": 0.0,
+  "error_heatmap": "error_map6.png",
+  "truth_heatmap": "masks.png",
+  "prediction_heatmap": ""
 }
 

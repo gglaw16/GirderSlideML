@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 # The target path is hard coded.
-import fcnn116 as target_last
+#import fcnn116 as target_last
 import skip116 as target
 import ipdb
 import scipy.misc
@@ -374,7 +374,7 @@ def test_execute_large_image(data, net):
 def test_load_negative_chips(data, net, params):
     image_data = data.get_image_data(0)
     image_data.load_annotations()
-    chip_size = int(math.ceil(params['input_size'] * math.sqrt(2)))
+    chip_size = int(math.ceil(params['input_dim'] * math.sqrt(2)))
     data.sample_negative_chips(image_data, image,  chip_size, net, 100)
 
     for chip in data.neg_chips:
@@ -387,7 +387,7 @@ def test_sample_batch(data, net, params):
     image_data = data.get_image_data(0)
     image_data.load_annotations()
     image = image_data.load_image()
-    chip_size = int(math.ceil(params['input_size'] * math.sqrt(2)))
+    chip_size = int(math.ceil(params['input_dim'] * math.sqrt(2)))
     image_data.load_positive_chips(image, chip_size, params)
 
     for chip in data.pos_chips:
@@ -427,7 +427,7 @@ def main_train(net, params):
         data.incremental_load()
         if params['debug']:
             data.save_chips()
-        
+
         print("==== Epoch %d"%epoch)
         epoch += 1
         train(net, data, params)

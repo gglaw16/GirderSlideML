@@ -145,7 +145,7 @@ if __name__ == "__main__":
         
 
     d = 116
-    print("input_size = %d"%d)
+    print("input_dim = %d"%d)
     in_img = Variable(torch.randn(2,3,d,d))
     output, _ = net(in_img)
     print(output.shape)
