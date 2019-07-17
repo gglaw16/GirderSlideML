@@ -1,6 +1,6 @@
 
 {"chip_cache_dir": "../cached_chips",
- "target_group": "fcnn116",
+ "target_group": "skip116",
  "folder_path": ".",
  "ignore_radius": 60,
  "data_path": "../DigitalGlobe/images",
@@ -14,7 +14,7 @@
  "image_cache_dir": "../cached_images",
  "num_minibatches": 50,
  "chips_per_epoch": 200,
- "input_level": 2,
+ "input_level": 1,
  "rate": 0.001,
  "schedule": 1,
  "batch_size": 200,

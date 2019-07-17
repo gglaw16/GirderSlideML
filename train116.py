@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 # The target path is hard coded.
 import fcnn116 as target_last
-import fcnn as target
+import skip116 as target
 import pdb
 #import ipdb
 import scipy.misc
@@ -200,7 +200,7 @@ def train(net, data, params):
                                                        params['target_group'], \
                                                        'model_backup.pth'))
                 torch.save(net.state_dict(), filename)
-                schedule = net.schedule_idx
+                #schedule = net.schedule_idx
                 '''
                 if schedule < 12:
                     schedule += 1
@@ -470,12 +470,12 @@ def load_net(params):
 
 def exit_gracefully(signum, frame):
     # restore the original signal handler as otherwise evil things will happen
-    # in raw_input when CTRL+C is pressed, and our signal handler is not re-entrant
+    # in raw_input when CTRL+C is pressed, and our signal handler is not re-entrant (raw_input was renamed to input in python3)
     signal.signal(signal.SIGINT, original_sigint)
     
     try:
-        if raw_input("\nReally quit? (y/n)> ").lower().startswith('y'):
-            if raw_input("\nSave net? (y/n)> ").lower().startswith('y'):
+        if input("\nReally quit? (y/n)> ").lower().startswith('y'):
+            if input("\nSave net? (y/n)> ").lower().startswith('y'):
                 global net, params
                 filename = os.path.join(params['folder_path'], params['target_group'],
                                         'model%d.pth'%params['input_level'])

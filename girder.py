@@ -9,10 +9,13 @@ import sys
 import math
 import girder_client
 import pdb
-#import urllib2
+if sys.version_info[0] < 3:
+    import urllib2
+else:
+    import urllib.request
+    import urllib.error
+    
 import my_utils
-import urllib.request
-import urllib.error
 
 GIRDER_URL = 'https://images.slide-atlas.org'
 GIRDER_USERNAME = 'law12019'
@@ -215,6 +218,16 @@ def get_annotation_loc_from_id(annotation_id, gc):
         return elements['center'],elements['width'],elements['height']
     else:
         return None
+    
+# adds an image to a heatmap annotation using their ids
+def add_image_to_annotation(annotation_id, image_id, gc):
+    gc = get_gc(gc)
+    resp = gc.get("annotation/%s" %annotation_id)
+    if len(resp) > 0:
+        elements = resp['annotation']['elements'][0]
+        elements.update({'user':{'imageUrl':"https://images.slide-atlas.org/api/v1/file/%s/download?contentDisposition=inline"%image_id}})
+        gc.put("annotation/%s" %annotation_id,json=resp['annotation'])
+
 
 # returns the first decendant image with a matching name.
 def get_decendant_item_id(ancestor_id, ancestor_type, item_name, gc=None):
@@ -338,7 +351,7 @@ def get_image_file(gc, item_id, filename, cache='cache'):
             try:
                 resp = urllib.request.urlopen(req)
                 image = np.asarray(bytearray(resp.read()), dtype="uint8")
-                image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+                image = cv2.imdecode(image, cv2.IMREAD_UNCHANGED)
                 return image
             except urllib.error.HTTPError as err:
                 if err.code == 400:
@@ -405,7 +418,7 @@ def get_large_cutout(image_id, level=0, region=None, progress=None, gc=None):
     Get a region using the tile api.
     No second recompression step, so the images should have less artifacts.
     level: integer,  0=>highest res, 1=>half resolution ... 
-    region: 
+    region: (in the units of the level being requested) (left, top, width, height)
     """
     gc = get_gc(gc)
     if not progress:

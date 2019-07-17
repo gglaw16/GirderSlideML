@@ -65,6 +65,31 @@ except:
 # ============= internal
 
 
+
+def pylaw2(pdf, radius, sample_count):
+    """
+    An alternative to pylaw.sample
+    Find peaks.  Keep neighboring peaks a minimim distance away.
+    greedy algorithm
+    returns (points, scores)
+    """
+    points = np.zeros((sample_count, 2))
+    # Also return the response
+    scores = np.zeros((sample_count))
+    for idx in range(sample_count):
+        (y,x) = np.unravel_index(np.argmax(pdf, axis=None), pdf.shape)
+        points[idx] = (y,x)
+        scores[idx] = pdf[y,x]
+        ymin = max(y-radius, 0)
+        ymax = min(y+radius, pdf.shape[0])
+        xmin = max(x-radius,0)
+        xmax = min(x+radius, pdf.shape[1])
+        pdf[ymin:ymax, xmin:xmax] = 0
+    return points, scores
+
+
+
+
 # Utility function that transforms and crops both an image and mask.
 # I think image_center is (x, y) but I should verify this....
 # Internal function to crop a chip from an image.
@@ -393,19 +418,23 @@ class ImageData:
         error_map_margin_x = int(out_chip_margin * output_spacing / error_map_spacing_x)
         error_map_margin_y = int(out_chip_margin * output_spacing / error_map_spacing_y)
         
-        # Get a list of sample centers (output / truth coordinates).
-        # pylaw sample requires a normalized pdf.
-        # make a list of random floats as samples.
-        samples = np.random.uniform(0, 1, sample_count)
-        samples.sort()
-        points = np.zeros((sample_count,2))
         # Shrink the map to avoid sampling margins.
         error_map = error_map[error_map_margin_y:-error_map_margin_y,
                               error_map_margin_x:-error_map_margin_x]
         # find the samples using an optimized c function.
         error_map = error_map.astype(np.float64)
         error_map /= np.sum(error_map)
-        pylaw.sample(error_map, samples, points)
+
+        if True:
+            # Get a list of sample centers (output / truth coordinates).
+            # pylaw sample requires a normalized pdf.
+            # make a list of random floats as samples.
+            samples = np.random.uniform(0, 1, sample_count)
+            samples.sort()
+            points = np.zeros((sample_count,2))
+            pylaw.sample(error_map, samples, points)
+        else:
+            points, scores = pylaw2.sample(error_map, 50, sample_count)
         
         #Loop through the points and multiply each coordinate by error_map_spacing_x / output_spacing
         for point in points:
@@ -453,6 +482,9 @@ class ImageData:
                 in_x0 = int((x/input_spacing)-(in_chip_size/2))
                 in_y0 = int((y/input_spacing)-(in_chip_size/2))
                 prediction_chip = prediction[in_y0:in_y0+in_chip_size, in_x0:in_x0+in_chip_size]
+                #make sure prediction is the same dimensions as image
+
+                
                 #add it as the fourth channel
                 image = np.dstack((image, prediction_chip))
             else:
@@ -464,10 +496,10 @@ class ImageData:
             out_x0 = int(out_x - out_chip_size/2)
             out_y0 = int(out_y - out_chip_size/2)
 
-            rgb_chip_sizex = out_chip_size/rgb_mask_spacing_x
-            rgb_chip_sizey = out_chip_size/rgb_mask_spacing_y
-            rgb_out_y0 = out_y0/rgb_mask_spacing_y
-            rgb_out_x0 = out_x0/rgb_mask_spacing_x
+            rgb_chip_sizex = int(out_chip_size/rgb_mask_spacing_x)
+            rgb_chip_sizey = int(out_chip_size/rgb_mask_spacing_y)
+            rgb_out_y0 = int(out_y0/rgb_mask_spacing_y)
+            rgb_out_x0 = int(out_x0/rgb_mask_spacing_x)
 
             truth = rgb_mask[rgb_out_y0:rgb_out_y0+rgb_chip_sizey, rgb_out_x0:rgb_out_x0+rgb_chip_sizex,:]
             

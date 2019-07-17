@@ -1,9 +1,8 @@
 
-
-
+import math
 import torch
 # The target path is hard coded.
-import fcnn as target
+import skip116 as target
 import cv2
 import os
 import numpy as np
@@ -58,9 +57,36 @@ if __name__ == '__main__':
     #item_id = '5915da13dd98b578723a09c8' #e
     item_id = '5915da6add98b578723a09cb' #f
 
-    image = g.get_image(item_id,level=params['input_level'])
+
+    #this is for when the image is too large to process all at once
+    name = 'gwenda.law'
+    
+    annotation_id = g.get_annotation_id_from_name(item_id, name, gc)
+    
+    center, width, height = g.get_annotation_loc_from_id(annotation_id, gc)
+    
+    spacing = math.pow(2,params['input_level'])
+    
+    x = center[0]
+    y = center[1]
+    w = int(width/spacing)
+    h = int(height/spacing)
+    
+    import pdb
+    #pdb.set_trace()
+
+    image = g.get_image_cutout(gc, item_id, (x,y), w, h, scale=1.0/spacing, cache='cache')
+    
+
+
+
+    #image = g.get_image(item_id,level=params['input_level'])
     masks = g.get_image_file(gc,item_id,'masks.png')
+    masks = masks[int(y/masks.shape[1]-h/masks.shape[1]):int(y/masks.shape[1]+h/masks.shape[1]),int(x/masks.shape[0]-w/masks.shape[0]):int(x/masks.shape[0]+w/masks.shape[0])]
+
     error_map = g.get_image_file(gc,item_id,'error_map%d.png'%params['input_level'])
+    if error_map is not None:
+        error_map = error_map[int(y/error_map.shape[1]-h/error_map.shape[1]):int(y/error_map.shape[1]+h/error_map.shape[1]),int(x/error_map.shape[0]-w/error_map.shape[0]):int(x/error_map.shape[0]+w/error_map.shape[0])]
     if error_map is None and not(masks is None):
         error_map = np.zeros(masks.shape)
         
@@ -70,9 +96,12 @@ if __name__ == '__main__':
     
     prediction_level = params['input_level']+3
     prediction = g.get_image_file(gc,item_id,'prediction%d.png'%prediction_level)
+
     if prediction is None:
         image = np.dstack((image, np.zeros(image.shape[:-1])))
     else:
+        prediction = prediction[int(y/prediction.shape[1]-h/prediction.shape[1]):int(y/prediction.shape[1]+h/prediction.shape[1]),int(x/prediction.shape[0]-w/prediction.shape[0]):int(x/prediction.shape[0]+w/prediction.shape[0])]
+        
         if len(prediction.shape) == 3:
             prediction = prediction[...,0]
             prediction = cv2.resize(prediction,(image.shape[1],image.shape[0]), interpolation=cv2.INTER_AREA)
@@ -88,10 +117,9 @@ if __name__ == '__main__':
     net_out = net_out.astype(np.uint8)
     net_out_flip = net_out[:,:,0]
     net_out = net_out[:,:,1]
-    net_predict = np.dstack((net_out,net_out,np.zeros(net_out.shape()),net_out))
+    net_predict = np.dstack((net_out,net_out,np.zeros(net_out.shape),net_out))
     
-    if plt:
-        plt.figure(figsize=(8,10))
+
 
     
     cv2.imwrite('prediction%d.png'%params['input_level'],net_predict)

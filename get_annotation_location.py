@@ -10,12 +10,13 @@ import girder as g
 import math
 import matplotlib.pyplot as plt
 import cv2
+import numpy as np
 
 level = 2
 
 gc = g.get_gc()
 item_id = '5d24bdd370aaa9038e6d1cb4'
-name = 'gwenda.law'
+name = 'ROI'
 
 annotation_id = g.get_annotation_id_from_name(item_id, name, gc)
 
@@ -32,5 +33,9 @@ image = g.get_image_cutout(gc, item_id, (x,y), w, h, scale=1.0/spacing, cache='c
 
 im_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
+im_rgb[:,:,0] = np.zeros(im_rgb[:,:,0].shape)
+
 
 plt.imshow(im_rgb)
+
+#cv2.imwrite('nuclei_segment_im.png',image)
