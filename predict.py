@@ -75,18 +75,18 @@ if __name__ == '__main__':
     import pdb
     #pdb.set_trace()
 
-    image = g.get_image_cutout(gc, item_id, (x,y), w, h, scale=1.0/spacing, cache='cache')
+    #image = g.get_image_cutout(gc, item_id, (x,y), w, h, scale=1.0/spacing, cache='cache')
     
 
 
 
-    #image = g.get_image(item_id,level=params['input_level'])
+    image = g.get_image(item_id,level=params['input_level'])
     masks = g.get_image_file(gc,item_id,'masks.png')
-    masks = masks[int(y/masks.shape[1]-h/masks.shape[1]):int(y/masks.shape[1]+h/masks.shape[1]),int(x/masks.shape[0]-w/masks.shape[0]):int(x/masks.shape[0]+w/masks.shape[0])]
+    #masks = masks[int(y/masks.shape[1]-h/masks.shape[1]):int(y/masks.shape[1]+h/masks.shape[1]),int(x/masks.shape[0]-w/masks.shape[0]):int(x/masks.shape[0]+w/masks.shape[0])]
 
     error_map = g.get_image_file(gc,item_id,'error_map%d.png'%params['input_level'])
-    if error_map is not None:
-        error_map = error_map[int(y/error_map.shape[1]-h/error_map.shape[1]):int(y/error_map.shape[1]+h/error_map.shape[1]),int(x/error_map.shape[0]-w/error_map.shape[0]):int(x/error_map.shape[0]+w/error_map.shape[0])]
+    #if error_map is not None:
+        #error_map = error_map[int(y/error_map.shape[1]-h/error_map.shape[1]):int(y/error_map.shape[1]+h/error_map.shape[1]),int(x/error_map.shape[0]-w/error_map.shape[0]):int(x/error_map.shape[0]+w/error_map.shape[0])]
     if error_map is None and not(masks is None):
         error_map = np.zeros(masks.shape)
         
@@ -94,19 +94,20 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
     
-    prediction_level = params['input_level']+3
+    prediction_level = params['input_level']+1
     prediction = g.get_image_file(gc,item_id,'prediction%d.png'%prediction_level)
 
     if prediction is None:
         image = np.dstack((image, np.zeros(image.shape[:-1])))
     else:
-        prediction = prediction[int(y/prediction.shape[1]-h/prediction.shape[1]):int(y/prediction.shape[1]+h/prediction.shape[1]),int(x/prediction.shape[0]-w/prediction.shape[0]):int(x/prediction.shape[0]+w/prediction.shape[0])]
-        
         if len(prediction.shape) == 3:
             prediction = prediction[...,0]
             prediction = cv2.resize(prediction,(image.shape[1],image.shape[0]), interpolation=cv2.INTER_AREA)
 
             image = np.dstack((image, prediction))
+    
+        #prediction = prediction[int(y/prediction.shape[1]-h/prediction.shape[1]):int(y/prediction.shape[1]+h/prediction.shape[1]),int(x/prediction.shape[0]-w/prediction.shape[0]):int(x/prediction.shape[0]+w/prediction.shape[0])]
+        
 
 
     net_out = net_utils.execute_large_image(net,image,params)
@@ -129,7 +130,7 @@ if __name__ == '__main__':
             gc.delete('file/%s'%f['_id'])
         if f['name'] == 'error_map%d.png'%params['input_level']:
             gc.delete('file/%s'%f['_id'])
-    gc.uploadFileToItem(item_id, 'prediction%d.png'%params['input_level'])
+    #gc.uploadFileToItem(item_id, 'prediction%d.png'%params['input_level'])
     
     # Update pdf / error map
     if not(masks is None):
@@ -166,6 +167,6 @@ if __name__ == '__main__':
         #error_map[:,1010:] = 0
         
         cv2.imwrite('error_map%d.png'%params['input_level'],error_map)
-        gc.uploadFileToItem(item_id, 'error_map%d.png'%params['input_level'])
+        #gc.uploadFileToItem(item_id, 'error_map%d.png'%params['input_level'])
     
 

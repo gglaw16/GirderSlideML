@@ -659,7 +659,8 @@ class TrainingData:
         # Split up the error map into positive and negative single channels.
         # The error maps and truth maps are rgba channels (_, pos, neg, dont_care)
         # This is a little ugly.
-        neg_emap = {"image": np_error_map['image'][:,:,2],
+        #pdb.set_trace()
+        neg_emap = {"image": np.invert(np_error_map['image'][:,:,0]),
                     "region": np_error_map['region']}
         pos_emap = {"image": np_error_map['image'][:,:,1],
                     "region": np_error_map['region']}
@@ -902,7 +903,7 @@ class TrainingData:
 
         net_out = net_utils.execute_large_image(net, image, self.params)
         
-        emap = image_data.compute_neg1ative_error_map(net_out, self.params)
+        emap = image_data.compute_negative_error_map(net_out, self.params)
 
         total_num_pos = max(1, self.get_number_of_positive_chips())
 

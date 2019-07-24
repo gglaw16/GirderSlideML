@@ -1,6 +1,7 @@
 # Masked saved in girder item with the image.
 # positive, negative, unknown  (g,r,b)
 
+#if debugging, use ["output", "loss","batch"]
 
 
 import signal
