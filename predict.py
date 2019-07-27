@@ -131,6 +131,8 @@ if __name__ == '__main__':
         if f['name'] == 'error_map%d.png'%params['input_level']:
             gc.delete('file/%s'%f['_id'])
     #gc.uploadFileToItem(item_id, 'prediction%d.png'%params['input_level'])
+    heatmap = g.Heatmap()
+    heatmap.image = net_predict
     
     # Update pdf / error map
     if not(masks is None):

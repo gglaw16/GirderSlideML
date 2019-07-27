@@ -32,10 +32,10 @@ class Heatmap:
     """
     
     # I am not sure about storing the image data here.  The image data references the chip.
-    def __init__(self):
-        self.image = None
+    def __init__(self, image=None, region=None):
+        self.image = image
         # minx,miny, maxx,maxy
-        self.region = [0,0,0,0]
+        self.region = region
         
     def load_from_girder(self, annot_id, cache='cache', gc=None):
         gc = get_gc(gc)
@@ -155,6 +155,11 @@ class Heatmap:
 
         if self.image is None:
             return False
+
+        if self.region is None:
+            resp = gc.get("item/%s/tiles"%item_id)
+            self.region = (0,0, resp['sizeX'], resp['sizeY'])
+
         
         # Upload the image as a file to the item.
         # No time to debug the direct upload ....

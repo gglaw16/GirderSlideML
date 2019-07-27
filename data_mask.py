@@ -130,7 +130,7 @@ def sample_image(image, image_center, sample_size, rotation=None, scale=1.0, mir
     #    M[1][1] = -M[1][1]
     #    M[1][2] = sample_size - M[1][2]
 
-    # Pad does not accept tupples over length 4.
+    # Pad does not accept tuples over length 4.
     if pad_value == 0:
         chip = cv2.warpAffine(image,M,(sample_size, sample_size), flags=interpolation)
     else:
@@ -236,8 +236,6 @@ class ChipData:
 
         if  'truth' in meta:            
             self.truth = cv2.imread(meta['truth'], 0)
-            #if np.max(self.truth) > 190:
-            #    pdb.set_trace()
             
         self.file_root = meta['image_data_root']
         root = os.path.split(self.file_root)[1]
@@ -330,13 +328,12 @@ class ImageData:
     def get_item_id(self):
         return self.item_id
 
-
     # Does not keep a reference to the image in this object.
     def load_image(self):
         return g.get_image(self.item_id, cache=self.params['image_cache_dir'])
 
-
-    def get_negative_error_map(self, image, net):
+    # not used.
+    def get_negative_error_image(self, image, net):
         net_out = net_utils.execute_large_image(net, image, self.params)
 
         # Get the negative channel.
@@ -366,7 +363,7 @@ class ImageData:
 
         return error
 
-
+    # I suspect this is not working right.  I am getting a shift
     def crop_error_map(self, error_map, truth_map, margin):
         """
         Crop the error map to make sure that truth chips are always in the truth map.
@@ -376,17 +373,17 @@ class ImageData:
         A new smaller error map is returned
         """
         # Compute the region in level0 slide coordinates
-        region = truth_map['region']
+        region = truth_map.region
         region = [region[0] + margin, region[1] + margin,
                   region[2] - margin, region[3] - margin]
         # crop with the error region
-        e_region = error_map['region']
+        e_region = error_map.region
         region = [max(region[0], e_region[0]), max(region[1], e_region[1]),
                   min(region[2], e_region[2]), min(region[3], e_region[3])]
 
         # convert region to error pixel coordinates so we can crop.        
-        e_spacing_x = (e_region[2] - e_region[0]) / error_map['image'].shape[1]
-        e_spacing_y = (e_region[3] - e_region[1]) / error_map['image'].shape[0]
+        e_spacing_x = (e_region[2] - e_region[0]) / error_map.image.shape[1]
+        e_spacing_y = (e_region[3] - e_region[1]) / error_map.image.shape[0]
         min_x = int((region[0]-e_region[0]) / e_spacing_x)
         min_y = int((region[1]-e_region[1]) / e_spacing_y)
         max_x = int((region[2]-e_region[0]) / e_spacing_x)
@@ -395,16 +392,20 @@ class ImageData:
         # Just to be safe
         min_x = max(min_x, 0)
         min_y = max(min_y, 0)
-        max_x = min(max_x, error_map['image'].shape[1])
-        max_y = min(max_y, error_map['image'].shape[0])
+        max_x = min(max_x, error_map.image.shape[1])
+        max_y = min(max_y, error_map.image.shape[0])
 
-        cropped_image = error_map['image'][min_y:max_y, min_x:max_y]
+        cropped_image = error_map.image[min_y:max_y, min_x:max_y]
 
-        return {"image": cropped_image, "region": region}
+        cropped_map = g.Heatmap()
+        cropped_map.image = cropped_image;
+        cropped_map.region = region
+        
+        return cropped_map
 
-    
+
     def sample_chips(self, sample_count, error_map, truth_map,
-                     prediction_map=None):
+                     prediction_map=None, debug_tag=None):
         """
         error_map: sample distribution (can be any spacing).
         truth_map: must have same pixel size as output.
@@ -420,11 +421,22 @@ class ImageData:
         # (without clipping corners).
         min_scale = self.params['min_augmentation_scale']
         in_chip_dim = int(math.ceil(self.params['input_dim'] * math.sqrt(2) / min_scale))
+        in_spacing = math.pow(2, self.params['input_level'])
+
+        # to keep resample / augmentation easy. Truth chip will have same slide size as chip.
+        # (even though convolution/rf_size shrinks the output)
+        # TODO: Check if roundoff is a problem with truth alignment.
+        out_chip_dim = int(in_chip_dim / self.params['rf_stride'])
+        out_spacing = in_spacing * self.params['rf_stride']
         
         # Crop the error map to make sure that truth chips are always in the truth map.
-        input_spacing = math.pow(2, self.params['input_level'])
-        margin = int(math.ceil(in_chip_dim / 2)*input_spacing)
-        error_map = self.crop_error_map(error_map, truth_map, margin)
+        margin = int(math.ceil(out_spacing * out_chip_dim / 2))
+        #error_map = self.crop_error_map(error_map, truth_map, margin)
+
+        region = truth_map.region
+        region = [region[0] + margin, region[1] + margin,
+                  region[2] - margin, region[3] - margin]
+        error_map.zero(region)
         
         # Get a list of sample points in the error map coordinate system.
         if True:
@@ -434,48 +446,50 @@ class ImageData:
             samples = np.random.uniform(0, 1, sample_count)
             samples.sort()
             points = np.zeros((sample_count,2))
-            error_map['image'] = error_map['image'] / error_map['image'].sum()
-            pylaw.sample(error_map['image'], samples, points)
+            error_map.image = error_map.image / error_map.image.sum()
+            pylaw.sample(error_map.image, samples, points)
         else:
-            points, scores = pylaw2.sample(error_map, 50, sample_count)
+            points, scores = pylaw2.sample(error_map.image, 50, sample_count)
 
-        # to keep resample / augmentation easy. Truth chip will have same slide size as chip.
-        # (even though convolution/rf_size shrinks the output)
-        # TODO: Check if roundoff is a problem with truth alignment.
-        out_chip_dim = int(in_chip_dim / self.params['rf_stride'])
+        if debug_tag:
+            img = error_map.image*255.0/np.max(error_map.image)
+            img = img.astype(np.uint8)
+            img = np.stack((img,img,img), axis=2)
+            for pt in points:
+                x = int(pt[1])
+                y = int(pt[0])
+                cv2.line(img,(x-10,y),(x+10,y),(255,255,0),5)
+                cv2.line(img,(x,y-10),(x,y+10),(255,255,0),5)
+            cv2.imwrite("debug/pdf_%s.png"%debug_tag, img)
 
         if prediction_map:
-            p_region = prediction_map['region']
-            p_spacing_x = (p_region[2] - p_region[0]) / prediction_map['image'].shape[1]
-            p_spacing_y = (p_region[3] - p_region[1]) / prediction_map['image'].shape[0]
+            p_spacing_x, p_spacing_y = prediction_map.get_spacing()
+            p_origin = prediction_map.get_origin()
 
-        e_region = error_map['region']
-        e_spacing_x = (e_region[2] - e_region[0]) / error_map['image'].shape[1]
-        e_spacing_y = (e_region[3] - e_region[1]) / error_map['image'].shape[0]
-
-        t_region = truth_map['region']
-        t_spacing_x = (t_region[2] - t_region[0]) / truth_map['image'].shape[1]
-        t_spacing_y = (t_region[3] - t_region[1]) / truth_map['image'].shape[0]
+        e_spacing_x, e_spacing_y = error_map.get_spacing()
+        e_origin = error_map.get_origin()
+        t_spacing_x, t_spacing_y = truth_map.get_spacing()
+        t_origin = truth_map.get_origin()
 
         new_chips = []
         for idx in range(len(points)):
             # Convert point from error coordinates to slide coordinates.
-            x = e_region[0] + (points[idx][1] * e_spacing_x) 
-            y = e_region[1] + (points[idx][0] * e_spacing_y) 
+            x = e_origin[0] + (points[idx][1] * e_spacing_x) 
+            y = e_origin[1] + (points[idx][0] * e_spacing_y) 
             # Get the input image chip from girder.
             image = g.get_image_cutout(gc, self.item_id, (x,y), in_chip_dim, in_chip_dim,
-                                       scale=1.0/input_spacing, cache='cache')
+                                       scale=1.0/in_spacing, cache='cache')
 
             # if there is a prediction image, we want to add it as the fourth input
             if not(prediction_map is None):
                 #crop out the section that we need for the chip
                 # (x,y) is in level0 coordinates.
-                px = (x - p_region[0]) / p_spacing_x
-                py = (y - p_region[1]) / p_spacing_y
+                px = (x - p_origin[0]) / p_spacing_x
+                py = (y - p_origin[1]) / p_spacing_y
                 in_x0 = int(px - (in_chip_size / 2))
                 in_y0 = int(py - (in_chip_size / 2))
-                prediction_chip = prediction_map['image'][in_y0:in_y0+in_chip_size,
-                                                          in_x0:in_x0+in_chip_size]
+                prediction_chip = prediction_map.image[in_y0:in_y0+in_chip_size,
+                                                       in_x0:in_x0+in_chip_size]
                 #add it as the fourth channel
                 image = np.dstack((image, prediction_chip))
             else:
@@ -484,21 +498,21 @@ class ImageData:
 
             # Crop the corresponding section from the truth.
             # (x,y) is in level0 coordinates.
-            tx = (x - t_region[0]) / t_spacing_x
-            ty = (y - t_region[1]) / t_spacing_y
+            tx = (x - t_origin[0]) / t_spacing_x
+            ty = (y - t_origin[1]) / t_spacing_y
             t_x0 = int(tx - (out_chip_dim / 2))
             t_y0 = int(ty - (out_chip_dim / 2))
                             
-            truth = truth_map['image'][t_y0:t_y0+out_chip_dim, t_x0:t_x0+out_chip_dim,:]
+            truth = truth_map.image[t_y0:t_y0+out_chip_dim, t_x0:t_x0+out_chip_dim,:]
             
-            chip_data = ChipData(image, truth, (x,y), self, input_spacing)
+            chip_data = ChipData(image, truth, (x,y), self, in_spacing)
             new_chips.append(chip_data)
             
         return new_chips
 
 
     # TODO: Generalize this to all targets (pos, neg, wing_class ...)
-    def compute_negative_error_map(self, image, net):
+    def compute_negative_error_image(self, image, net):
         """ 
         I am debating whether to make an image ivar or pass it in as an argument.
         Using arguments makes the api more complex, but forces me to keep memory usage small.
@@ -635,41 +649,39 @@ class TrainingData:
                                              self.params['prediction_heatmap'])        
         if prediction_map:
             # convert this to intput pixel size. (Will this be a problem?)
-            p_region = prediction_map['region']
-            p_spacing_x = (p_region[2] - p_region[0]) / prediction_map['image'].shape[1]
-            p_spacing_y = (p_region[3] - p_region[1]) / prediction_map['image'].shape[0]
-            scale_x = input_spacing / p_spacing_x
-            scale_y = input_spacing / p_spacing_y
-            prediction_map['image'] = cv2.resize(prediction_map['image'],None,fx=scale_x,fy=scale_y)
+            prediction_map.set_spacing((input_spacing, input_spacing))
 
         # Get and scale the truth map.
         truth_map = g.get_heatmap_image(image_data.item_id, self.params['truth_heatmap'])        
         # convert this to output pixel size.
-        t_region = truth_map['region']
-        truth_spacing_x = (t_region[2] - t_region[0]) / truth_map['image'].shape[1]
-        truth_spacing_y = (t_region[3] - t_region[1]) / truth_map['image'].shape[0]
-        scale_x = output_spacing / truth_spacing_x
-        scale_y = output_spacing / truth_spacing_y
-        truth_map['image'] = cv2.resize(truth_map['image'],None,fx=scale_x,fy=scale_y)
+        truth_map.set_spacing((output_spacing, output_spacing))
 
         # Now for the error/sample map.
         np_error_map =  g.get_heatmap_image(image_data.item_id, self.params['error_heatmap'])
         if np_error_map is None:
+            # TODO: Convert to the same eoncoding as the error map.
             np_error_map = truth_map
+            
         # Split up the error map into positive and negative single channels.
         # The error maps and truth maps are rgba channels (_, pos, neg, dont_care)
         # This is a little ugly.
         #pdb.set_trace()
-        neg_emap = {"image": np.invert(np_error_map['image'][:,:,0]),
-                    "region": np_error_map['region']}
-        pos_emap = {"image": np_error_map['image'][:,:,1],
-                    "region": np_error_map['region']}
+        neg_emap = np_error_map.get_channel_map(0)
+        neg_emap.invert()
+        pos_emap = np_error_map.get_channel_map(1)
 
+        debug_tag = None
+        if 'debug' in self.params and 'pdf' in self.params['debug']:
+            debug_tag = 'neg'
         self.neg_chips += image_data.sample_chips(self.params['chips_per_epoch'],
-                                                  neg_emap, truth_map, prediction_map)
+                                                  neg_emap, truth_map, prediction_map,
+                                                  debug_tag=debug_tag)
+        debug_tag = None
+        if 'debug' in self.params and 'pdf' in self.params['debug']:
+            debug_tag = 'pos'
         self.pos_chips += image_data.sample_chips(self.params['chips_per_epoch'],
-                                                  pos_emap, truth_map, prediction_map)
-                                                  
+                                                  pos_emap, truth_map, prediction_map,
+                                                  debug_tag=debug_tag)
 
         # Move to the next image to load.
         self.image_data_index += 1
@@ -830,7 +842,7 @@ class TrainingData:
             chips = sorted(self.neg_chips, key=lambda chip: chip.error, reverse=True)
             self.neg_chips = chips[0:self.params['max_num_training_images']]
             print("%d neg chips, error range: %f to %f"%(len(chips), chips[-1].error, chips[0].error))
-            if self.params['debug']:
+            if 'debug' in self.params:
                 debug_dir = os.path.join(".", self.params['target_group'], 'debug')
                 # save out the top 10 offending chips.
                 for idx in range(min(10,len(self.neg_chips))):
@@ -840,8 +852,8 @@ class TrainingData:
             num = max(self.params['max_num_training_images'], int(0.9*len(self.pos_chips)))
             chips = sorted(self.pos_chips, key=lambda chip: chip.error, reverse=True)
             self.pos_chips = chips[0:num]
-            print("%d pos chips, error range: %f to %f"%(len(chips), chips[-1].error, chips[0].error))
-            if self.params['debug']:
+            print("%d pos chips, error range: %f to %f"%(len(self.pos_chips), chips[-1].error, chips[0].error))
+            if 'deubg' in self.params:
                 debug_dir = os.path.join(".", self.params['target_group'], 'debug')
                 # save out the top 10 offending chips.
                 for idx in range(min(10,len(self.pos_chips))):
@@ -903,7 +915,7 @@ class TrainingData:
 
         net_out = net_utils.execute_large_image(net, image, self.params)
         
-        emap = image_data.compute_negative_error_map(net_out, self.params)
+        emap = image_data.compute_negative_error_image(net_out, self.params)
 
         total_num_pos = max(1, self.get_number_of_positive_chips())
 
@@ -1002,7 +1014,7 @@ class TrainingData:
         # Save so the program can update chip errors.
         self.batch_chips = pos_chips + neg_chips
     
-        if params['debug'] and 'batch2' in params['debug']:
+        if 'debug' in params and 'batch2' in params['debug']:
             for idx in range(len(inputs)):
                 image = inputs[idx][:,:,0:3]
                 cv2.imwrite("debug/batch_%d_image.png"%idx, image)

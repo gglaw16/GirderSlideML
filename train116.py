@@ -123,7 +123,8 @@ def train(net, data, params):
 
         # loss function
         criterion = torch.nn.MSELoss(reduce=False)
-
+        #ipdb.set_trace()
+        
         for mini in range(params['num_minibatches']):  # loop over the dataset multiple times
             running_loss = 0.0
             # zero the parameter gradients
@@ -136,32 +137,35 @@ def train(net, data, params):
             tmp_out = output_tensor[:,1,...]
             loss = criterion(tmp_out, truth_tensor)
 
-            if params['debug'] and mini == params['num_minibatches']-1:
-                if 'output' in params['debug']:
-                    output = output_tensor
-                    for idx in range(len(input_np)):
-                        tmp = (output[idx,1]).cpu().detach().numpy()
-                        cv2.imwrite("d%d_output.png"%idx, tmp*255)
+            if 'debug' in params:
+                if mini == params['num_minibatches']-1 or mini == 0:
+                    if 'output' in params['debug']:
+                        output = output_tensor
+                        for idx in range(len(input_np)):
+                            tmp = (output[idx,1]).cpu().detach().numpy()
+                            cv2.imwrite("debug/d%d_%d_output%d.png"%((batch%2), idx, mini), tmp*255)
             
-                if 'batch' in params['debug']:
-                    for idx in range(len(input_np)):
-                        tmp = np.moveaxis(input_np[idx], 0,2)*255
-                        cv2.imwrite("d%d_input.png"%idx, tmp[...,0:3])
-                        cv2.imwrite("d%d_inputP.png"%idx, tmp[...,3])
-                        cv2.imwrite("d%d_truth.png"%idx, (truth_np[idx]*255).astype(np.uint8))
+                    if 'batch' in params['debug']:
+                        for idx in range(len(input_np)):
+                            tmp = np.moveaxis(input_np[idx], 0,2)*255
+                            cv2.imwrite("debug/d%d_%d_input.png"%((batch%2), idx), tmp[...,0:3])
+                            cv2.imwrite("debug/d%d_%d_inputP.png"%((batch%2), idx), tmp[...,3])
+                            cv2.imwrite("debug/d%d_%d_truth.png"%((batch%2), idx),
+                                        (truth_np[idx]*255).astype(np.uint8))
 
-                if 'loss' in params['debug']:
-                    tmp = loss.cpu().detach().numpy()
-                    for idx in range(len(input_np)):
-                        cv2.imwrite("d%d_loss1.png"%idx, tmp[idx]*255)
+                    #if 'loss' in params['debug']:
+                    #    tmp = loss.cpu().detach().numpy()
+                    #    for idx in range(len(input_np)):
+                    #        cv2.imwrite("debug/d%d_%d_loss1_%d.png"%((batch%2), idx, mini), tmp[idx]*255)
 
             # Zero out mask pixels.
             loss[ignore_mask_tensor>128] = 0.0
 
-            if params['debug'] and 'loss' in params['debug'] and mini == 29:
-                tmp = loss.cpu().detach().numpy()
-                for idx in range(len(input_np)):
-                    cv2.imwrite("d%d_loss2.png"%idx, tmp[idx]*255)
+            if 'debug' in params and 'loss' in params['debug']:
+                if mini == params['num_minibatches']-1 or mini == 0:
+                    tmp = loss.cpu().detach().numpy()
+                    for idx in range(len(input_np)):
+                        cv2.imwrite("debug/d%d_%d_loss2_%d.png"%((batch%2), idx, mini), tmp[idx]*255)
 
             loss_scalar = loss.mean()
             
@@ -187,6 +191,8 @@ def train(net, data, params):
                     print("\033[1A %d: loss: %.3f" % (mini + 1, running_loss))
                 #print("%d: loss: %.3f" % (mini + 1, running_loss))
             last_loss = running_loss
+
+        #ipdb.set_trace()
 
         if running_loss < start_loss:
             #if not params['debug'] or len(params['debug']) == 0:
@@ -426,7 +432,7 @@ def main_train(net, params):
 
         # Load the next image.
         data.incremental_load()
-        if params['debug']:
+        if 'debug' in params:
             data.save_chips()
 
         print("==== Epoch %d"%epoch)
@@ -462,8 +468,8 @@ def load_net(params):
                                                 map_location=lambda storage, loc: storage))
         transfer_net_weights(transfer_net, net)
         print("Saving " + filename)
-        if not params['debug']:
-            torch.save(net.state_dict(), filename)
+        #if not params['debug']:
+        torch.save(net.state_dict(), filename)
 
     return net
 
@@ -497,12 +503,14 @@ def exit_gracefully(signum, frame):
 
 # 3 ok,  2 is not
 if __name__ == '__main__':
-    random.seed(5)
-    np.random.seed(5)
-    torch.manual_seed(5)
-
     with open('params.json') as json_file:
         params = json.load(json_file)    
+
+    if 'random_seed' in params:
+        random.seed(params['random_seed'])
+        np.random.seed(params['random_seed'])
+        torch.manual_seed(params['random_seed'])
+
     net = load_net(params)
     net.train()
     
