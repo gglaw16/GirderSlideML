@@ -72,13 +72,8 @@ if __name__ == '__main__':
     w = int(width/spacing)
     h = int(height/spacing)
     
-    import pdb
-    #pdb.set_trace()
-
     #image = g.get_image_cutout(gc, item_id, (x,y), w, h, scale=1.0/spacing, cache='cache')
     
-
-
 
     image = g.get_image(item_id,level=params['input_level'])
     masks = g.get_image_file(gc,item_id,'masks.png')
@@ -93,82 +88,69 @@ if __name__ == '__main__':
     net = load_net(params)
     if torch.cuda.is_available():
         net.cuda(params['gpu'])
-    
-    prediction_level = params['input_level']+1
-    prediction = g.get_image_file(gc,item_id,'prediction%d.png'%prediction_level)
+
+    # This is automatic,  I am manually controlling the prediction from the last
+    # level in params.json, so I can test with and without it.
+    #prediction_level = params['input_level']+1
+    #prediction = g.get_image_file(gc,item_id,'prediction%d.png'%prediction_level)
+    prediction = g.get_image_file(gc,item_id,params['prediction_heatmap'])
 
     if prediction is None:
-        image = np.dstack((image, np.zeros(image.shape[:-1])))
+        net_in = np.dstack((image, np.zeros(image.shape[:-1])))
     else:
         if len(prediction.shape) == 3:
             prediction = prediction[...,0]
-            prediction = cv2.resize(prediction,(image.shape[1],image.shape[0]), interpolation=cv2.INTER_AREA)
-
-            image = np.dstack((image, prediction))
+        ipdb.set_trace()
+        # Make sure opencv is not swapping using x for y.
+        dx = image.shape[1]
+        dy = image.shape[1]
+        prediction = cv2.resize(prediction, (dx,dy), interpolation=cv2.INTER_AREA)
+        # Add the prediction from the previous level as 4 channel to the input.
+        net_in = np.dstack((image, prediction))
     
-        #prediction = prediction[int(y/prediction.shape[1]-h/prediction.shape[1]):int(y/prediction.shape[1]+h/prediction.shape[1]),int(x/prediction.shape[0]-w/prediction.shape[0]):int(x/prediction.shape[0]+w/prediction.shape[0])]
-        
 
-
-    net_out = net_utils.execute_large_image(net,image,params)
+    net_out = net_utils.execute_large_image(net, net_in, params)
 
     net_out *= 255.999
-    net_out = np.clip(net_out,0,255)
-    
+    net_out = np.clip(net_out, 0, 255)
+
     net_out = net_out.astype(np.uint8)
     net_out_flip = net_out[:,:,0]
     net_out = net_out[:,:,1]
-    net_predict = np.dstack((net_out,net_out,np.zeros(net_out.shape),net_out))
-    
-
-
+    net_predict = np.dstack((net_out, net_out, np.zeros(net_out.shape), net_out))
     
     cv2.imwrite('prediction%d.png'%params['input_level'],net_predict)
-    files = gc.listFile(item_id)
-    for f in files:
-        if f['name'] == 'prediction%d.png'%params['input_level']:
-            gc.delete('file/%s'%f['_id'])
-        if f['name'] == 'error_map%d.png'%params['input_level']:
-            gc.delete('file/%s'%f['_id'])
-    #gc.uploadFileToItem(item_id, 'prediction%d.png'%params['input_level'])
-    heatmap = g.Heatmap()
-    heatmap.image = net_predict
+    heatmap  = g.Heatmap(net_predict)
+    heatmap.save_to_girder(item_id, 'prediction%d.png'%params['input_level'])
     
     # Update pdf / error map
     if not(masks is None):
-
-        net_out = cv2.resize(net_out,(masks.shape[1],masks.shape[0]))
-        net_out_flip = cv2.resize(net_out_flip,(masks.shape[1],masks.shape[0]))
-    
+        dx = masks.shape[1]
+        dy = masks.shape[0]
+        net_out = cv2.resize(net_out, (dx, dy))
+        net_out_flip = cv2.resize(net_out_flip, (dx, dy))
         
-        unknown = masks[:,:,0]
-        positive = masks[:,:,1]
-        negative = masks[:,:,2]
-        
+        positive = masks[:,:,0]
+        negative = 255-masks[:,:,0]
+        alpha = masks[:,:,3]
         
         positive_error_map = net_out_flip
         positive_error_map[positive<128] = 0
+        positive_error_map[alpha<128] = 0
         
         negative_error_map = net_out
         negative_error_map[negative<128] = 0
-        
+        negative_error_map[alpha<128] = 0
     
         # Save error map / pdf back to girder.
-        positive_error_map = positive_error_map.astype(np.uint8)
-    
-        
-        negative_error_map = negative_error_map.astype(np.uint8)
-    
-        
-        
-        error_map = np.dstack((np.zeros(positive_error_map.shape),positive_error_map,negative_error_map))
-        
-        #error_map[0:1150,:] = 0
-        #error_map[1550:,:] = 0
-        #error_map[:,0:500] = 0
-        #error_map[:,1010:] = 0
+        #positive_error_map = positive_error_map.astype(np.uint8)
+        #negative_error_map = negative_error_map.astype(np.uint8)
+        error_map = np.dstack((np.zeros(positive_error_map.shape),
+                               positive_error_map,negative_error_map))
+        # Should I add an alpha just for display?
         
         cv2.imwrite('error_map%d.png'%params['input_level'],error_map)
-        #gc.uploadFileToItem(item_id, 'error_map%d.png'%params['input_level'])
+        heatmap  = g.Heatmap(error_map)
+        heatmap.save_to_girder(item_id, 'error%d.png'%params['input_level'])
     
 

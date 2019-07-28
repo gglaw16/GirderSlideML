@@ -659,17 +659,16 @@ class TrainingData:
         # Now for the error/sample map.
         np_error_map =  g.get_heatmap_image(image_data.item_id, self.params['error_heatmap'])
         if np_error_map is None:
-            # TODO: Convert to the same eoncoding as the error map.
-            np_error_map = truth_map
+            # Split up the error map into positive and negative single channels.
+            # The error maps and truth maps are rgba channels (_, pos, neg, dont_care)
+            # This is a little ugly.
+            neg_emap = truth_map.get_channel_map(0)
+            neg_emap.invert()
+            pos_emap = truth_map.get_channel_map(1)
+        else:
+            pos_emap = np_error_map.get_channel_map(1)
+            neg_emap = np_error_map.get_channel_map(2)
             
-        # Split up the error map into positive and negative single channels.
-        # The error maps and truth maps are rgba channels (_, pos, neg, dont_care)
-        # This is a little ugly.
-        #pdb.set_trace()
-        neg_emap = np_error_map.get_channel_map(0)
-        neg_emap.invert()
-        pos_emap = np_error_map.get_channel_map(1)
-
         debug_tag = None
         if 'debug' in self.params and 'pdf' in self.params['debug']:
             debug_tag = 'neg'

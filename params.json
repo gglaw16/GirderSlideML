@@ -10,20 +10,20 @@
   "num_batches": 30,
   "heatmap_decay": 0.2,
   "image_cache_dir": "../cached_images",
-  "num_minibatches": 10,
   "chips_per_epoch": 30,
-  "rate": 0.001,
   "schedule": 1,
   "batch_size": 10,
   "input_dim": 600,
-  "max_num_training_images": 100,
+  "max_num_training_images": 90,
   "shock": 0.0,
-  "random_seed": 4,
+  "random_seed": 1,
+  "num_minibatches": 20,
+  "rate": 0.0001,
 
   "debug_off": ["output", "batch", "loss", "pdf"],  
-  "input_level": 4,
-  "error_heatmap": "error_map6.png",
-  "truth_heatmap": "masks.png",
+  "input_level": 1,
+  "error_heatmap": "error1.png",
+  "truth_heatmap": "test_mask.png",
   "prediction_heatmap": ""
 }
 

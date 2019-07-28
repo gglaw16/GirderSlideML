@@ -191,7 +191,7 @@ def train(net, data, params):
                     print("\033[1A %d: loss: %.3f" % (mini + 1, running_loss))
                 #print("%d: loss: %.3f" % (mini + 1, running_loss))
             last_loss = running_loss
-
+            
         #ipdb.set_trace()
 
         if running_loss < start_loss:
