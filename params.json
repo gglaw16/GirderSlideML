@@ -16,13 +16,13 @@
   "input_dim": 600,
   "max_num_training_images": 90,
   "shock": 0.0,
-  "random_seed": 1,
+  "random_seed": 3,
   "num_minibatches": 20,
   "rate": 0.0001,
 
   "debug_off": ["output", "batch", "loss", "pdf"],  
-  "input_level": 1,
-  "error_heatmap": "error1.png",
+  "input_level": 5,
+  "error_heatmap": "error5.png",
   "truth_heatmap": "test_mask.png",
   "prediction_heatmap": ""
 }

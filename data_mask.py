@@ -132,7 +132,11 @@ def sample_image(image, image_center, sample_size, rotation=None, scale=1.0, mir
 
     # Pad does not accept tuples over length 4.
     if pad_value == 0:
-        chip = cv2.warpAffine(image,M,(sample_size, sample_size), flags=interpolation)
+        try:
+            chip = cv2.warpAffine(image,M,(sample_size, sample_size), flags=interpolation)
+        except:
+            ipdb.set_trace()
+            print('debug')
     else:
         pad_vector = tuple([pad_value]*num_channels)
         chip = cv2.warpAffine(image,M,(sample_size, sample_size), \
