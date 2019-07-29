@@ -434,7 +434,9 @@ class ImageData:
         out_spacing = in_spacing * self.params['rf_stride']
         
         # Crop the error map to make sure that truth chips are always in the truth map.
-        margin = int(math.ceil(out_spacing * out_chip_dim / 2))
+        margin = int(math.ceil(out_spacing * (out_chip_dim+2) / 2))
+        margin = max(margin, int(math.ceil(in_spacing * (in_chip_dim+2) / 2)))
+
         #error_map = self.crop_error_map(error_map, truth_map, margin)
 
         region = truth_map.region
@@ -490,10 +492,10 @@ class ImageData:
                 # (x,y) is in level0 coordinates.
                 px = (x - p_origin[0]) / p_spacing_x
                 py = (y - p_origin[1]) / p_spacing_y
-                in_x0 = int(px - (in_chip_size / 2))
-                in_y0 = int(py - (in_chip_size / 2))
-                prediction_chip = prediction_map.image[in_y0:in_y0+in_chip_size,
-                                                       in_x0:in_x0+in_chip_size]
+                in_x0 = int(px - (in_chip_dim / 2))
+                in_y0 = int(py - (in_chip_dim / 2))
+                prediction_chip = prediction_map.image[in_y0:in_y0+in_chip_dim,
+                                                       in_x0:in_x0+in_chip_dim, 1]
                 #add it as the fourth channel
                 image = np.dstack((image, prediction_chip))
             else:

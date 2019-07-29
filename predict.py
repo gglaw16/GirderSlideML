@@ -8,7 +8,7 @@ import os
 import numpy as np
 import girder as g
 import net_utils
-#import ipdb
+import ipdb
 import json
 try:
     import matplotlib.pyplot as plt
@@ -98,12 +98,11 @@ if __name__ == '__main__':
     if prediction is None:
         net_in = np.dstack((image, np.zeros(image.shape[:-1])))
     else:
-        if len(prediction.shape) == 3:
-            prediction = prediction[...,0]
-        ipdb.set_trace()
+        if len(prediction.shape) > 1:
+            prediction = prediction[...,1]
         # Make sure opencv is not swapping using x for y.
         dx = image.shape[1]
-        dy = image.shape[1]
+        dy = image.shape[0]
         prediction = cv2.resize(prediction, (dx,dy), interpolation=cv2.INTER_AREA)
         # Add the prediction from the previous level as 4 channel to the input.
         net_in = np.dstack((image, prediction))
