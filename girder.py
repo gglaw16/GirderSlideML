@@ -700,17 +700,125 @@ def get_image_cutout(gc, image_id, center, width, height, scale=1, cache='cache'
 
 # level: integer,  0=>highest level, 1=>half resolution ... 
 def get_image(image_id, level=0, cachedir='cache'):
-    my_utils.ensuredir(cachedir)
-    # add the cache path and extension
-    cache_filepath = os.path.join(cachedir, "%s.png"%(image_id))    
-    if os.path.isfile(cache_filepath):
-        return cv2.imread(cache_filepath)
+    return get_large_cutout(image_id, level, cachedir=cachedir)
+        
+def _compute_tile_grid(region, tx, ty):
+    """
+    region: [xmin, yMin, xMax, yMax]
+    """
+    ibds = (int(math.floor(float(region[0]) / tx)),
+            int(math.floor(float(region[1]) / ty)),
+            int(math.ceil(float(region[2]) / tx)),
+            int(math.ceil(float(region[3]) / ty)))
+    return ibds
 
-    img = get_large_cutout(image_id, level)
-    cv2.imwrite(cache_filepath, img)
+def _compute_level_region(region, level):
+    """
+    region: [xmin, yMin, xMax, yMax]
+    """
+    level_spacing = math.pow(2, level)
+    level_roi = (int(float(region[0]) / level_spacing),
+                 int(float(region[1]) / level_spacing),
+                 int(float(region[0] + region[2]) / level_spacing),
+                 int(float(region[1] + region[3]) / level_spacing))
+    return level_roi
+
+def get_large_cutout(image_id, level=0, region=None, progress=None, gc=None, cachedir='cache'):
+    """
+    Get a region using the tile api.
+    No second recompression step, so the images should have less artifacts.
+    level: integer,  0=>highest res, 1=>half resolution ...
+    region: (left, top, width, height) in coordinate system of level 0.
+    """
+    # TODO: Fix the region api
+    level_roi = None
+    if region:
+        level_roi = _compute_level_region(region, level)
+
+    default_tile_size = 256
+    tx = default_tile_size
+    ty = default_tile_size
+    if level_roi is None:
+        cache_filepath = os.path.join(cachedir, "%s_None_%d.png"%(image_id, level))
+    else:
+        i_bds = _compute_tile_grid(level_roi, default_tile_size, default_tile_size)
+        cache_filepath = os.path.join(cachedir, "%s_%d_%d_%d_%d_%d_%d.png"%((image_id,)+i_bds+(level,tx)))
+    # check for the image in the cache
+    ensuredir(cachedir)
+    if os.path.isfile(cache_filepath):
+        tiled_image = cv2.imread(cache_filepath)
+    else:
+        gc = get_gc(gc)
+        if not progress:
+            progress = [0.0,100.0]
+            remaining = progress[1]-progress[0]
+            # get the image meta data
+            meta = gc.get("item/%s/tiles" % image_id)
+        # girder large image,  level 0 is at the top of the pyramid.
+        g_level = meta['levels'] - level - 1
+        tx = int(meta['tileWidth'])
+        ty = int(meta['tileHeight'])
+        if level_roi is None:
+            level_roi = _compute_level_region([0,0,int(meta['sizeX']), int(meta['sizeY'])], level)
+            i_bds = _compute_tile_grid(level_roi, tx, ty)
+        if tx != default_tile_size or ty != default_tile_size:
+            i_bds = _compute_tile_grid(level_roi, tx, ty)
+            cache_filepath = os.path.join(cachedir, "%s_%d_%d_%d_%d_%d_%d.png"%((image_id,)+i_bds+(level,tx)))
+        total = float(i_bds[2]-i_bds[0])*(i_bds[3]-i_bds[1])
+        count1 = 0;
+        count2 = 0;
+        # TODO: deal with partial tiles?
+        tiled_image = np.zeros(((i_bds[3]-i_bds[1])*ty, (i_bds[2]-i_bds[0])*tx, 3), dtype=np.uint8)
+        # Get all of the tiles and fill the region.
+        for x in range(i_bds[0], i_bds[2]):
+            xo = x - i_bds[0]
+            for y in range(i_bds[1], i_bds[3]):
+                yo = y - i_bds[1]
+                #.... get GIRDER_URL from gc ....
+                tile_url = GIRDER_URL+"/api/v1/item/%s/tiles/zxy/%d/%d/%d"%(image_id,g_level,x,y)
+                req = urllib.request.Request(tile_url)
+                req.add_header('Girder-Token', gc.token)
+                count1 = count1 + 1
+                count2 = count2 + 1
+                try:
+                    resp = urllib.request.urlopen(req)
+                    image = np.asarray(bytearray(resp.read()), dtype="uint8")
+                    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+                    # copy into region.
+                    tiled_image[yo*ty:(yo+1)*ty, xo*tx:(xo+1)*tx] = image
+                except urllib.error.HTTPError as err:
+                    if err.code == 400:
+                        print("Bad request!")
+                    elif err.code == 404:
+                        pass
+                        #print("Page not found!")
+                    elif err.code == 403:
+                        print("Access denied!")
+                    else:
+                        print("Something happened! Error code %d" % err.code)
+                    break
+            if count2 > 100:
+                count2 = 0
+                #print("\033[F %0.1f finished" % (progress[0] + remaining*(count1 / total)))
+                cv2.imwrite(cache_filepath, tiled_image)
+
+    # If requesting the whole image  no need to crop.
+    # It crashes from doubling the memory.
+    if region is None:
+        return tiled_image
+
+    # crop to the requested size.
+    tiled_image_origin_x = i_bds[0]*tx
+    x0 = level_roi[0]-tiled_image_origin_x
+    x1 = level_roi[2]-tiled_image_origin_x
+    tiled_image_origin_y = i_bds[1]*ty
+    y0 = level_roi[1]-tiled_image_origin_y
+    y1 = level_roi[3]-tiled_image_origin_y
+    img = tiled_image[y0:y1, x0:x1]
+
     return img
-        
-        
+
+
 
 def get_large_cutout(image_id, level=0, region=None, progress=None, gc=None):
     """
@@ -1075,12 +1183,15 @@ if __name__ == '__main__':
     file_to_heatmap("5915da6add98b578723a09cb", "prediction6.png")
     """
 
-    map = get_heatmap_image("5915da6add98b578723a09cb", 'masks.png')
+    #map = get_heatmap_image("5915da6add98b578723a09cb", 'masks.png')
+    #region = [int(map.region[2]*0.49), int(map.region[3]*0.42),
+    #          int(map.region[2]*0.75), int(map.region[3]*0.57)]
+    #map.zero(region, outside=False)
+    #heatmap = Heatmap(map.image)
+    #heatmap.save_to_girder("5915da6add98b578723a09cb", "test_mask.png")
 
-    region = [int(map.region[2]*0.49), int(map.region[3]*0.42),
-              int(map.region[2]*0.75), int(map.region[3]*0.57)]
-    map.zero(region, outside=False)
+    img_id = "" 
+    img = get_large_cutout(img_id, level=1, region=[100, 100, 512, 512])
+    cv2.imwrite("debug2.png", img)
 
-    heatmap = Heatmap(map.image)
-    heatmap.save_to_girder("5915da6add98b578723a09cb", "test_mask.png")
-
+    
