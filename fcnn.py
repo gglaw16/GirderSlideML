@@ -11,13 +11,14 @@ class net(nn.Module):
     def __init__(self):
         super(net, self).__init__()
 
+        self.batch_norm = False
         self.schedule = []
         rf_size = 1
         rf_stride = 1
         
         layers = []
 
-    # TODO: add a fourth component? lower resolution results
+    # TODO: add a fourth component? lower resolution results DONE
         components = 4
         out_components = 32
         for i in range(4):
@@ -59,9 +60,9 @@ class net(nn.Module):
         self.num_pre_layers = len(layers)
 
         # Layers that are on the end of all scheduled layers.
-        layers.append(nn.Conv2d(components, components, 1))
-        layers.append(nn.BatchNorm2d(components, affine=False))
-        layers.append(nn.LeakyReLU())
+        #layers.append(nn.Conv2d(components, components, 1))
+        #layers.append(nn.BatchNorm2d(components, affine=False))
+        #layers.append(nn.LeakyReLU())
         # final layer to get the output parameters
         # no relu or softmax (of course).
         # I put an extra NIN, because this layer cannot do much logic.
@@ -95,23 +96,45 @@ class net(nn.Module):
 
         for i in range(num_layers):
             layer = self.layers[i]
-            if not isinstance(layer, nn.BatchNorm2d):
+            #if True:
+            if self.batch_norm or not isinstance(layer, nn.BatchNorm2d):
                 x = layer(x)
 
         batch_size, num_comps, dy, dx = x.shape
         if num_comps != 128:
             pad = Variable(torch.zeros(batch_size, 128-num_comps, dy, dx))
-            pad = pad.cuda(0)
+            if torch.cuda.is_available():
+                pad = pad.cuda(0)
             x = torch.cat((x, pad), 1)   
             
         # Post layers that get executed for every schedule.
         for i in range(self.num_pre_layers, len(self.layers)):
             layer = self.layers[i]
-            if not isinstance(layer, nn.BatchNorm2d):
+            if self.batch_norm or not isinstance(layer, nn.BatchNorm2d):
                 x = layer(x)    
         
         return x
-        
+
+    
+    def schedule_parameters(self):
+        schedule = self.schedule[self.schedule_idx]
+        num_layers = schedule['layers']
+
+        for i in range(num_layers):
+            layer = self.layers[i]
+            if self.batch_norm or not isinstance(layer, nn.BatchNorm2d):
+                for param in layer.parameters():
+                    yield param
+
+        # Post layers that get executed for every schedule.
+        for i in range(self.num_pre_layers, len(self.layers)):
+            layer = self.layers[i]
+            if self.batch_norm or not isinstance(layer, nn.BatchNorm2d):
+                for param in layer.parameters():
+                    yield param
+
+
+    
 
 if __name__ == "__main__":
     net = net()

@@ -1,6 +1,9 @@
 # api:
 # - data = TrainingData(params)#   returns a data object.
 # - data.incremental_load()
+# api:
+# - data = TrainingData(params)#   returns a data object.
+# - data.incremental_load()
 #   Load the next image and get positive and negative chips.
 # - data.prune_chips()
 #   remove low error chips to limit the number of cached chips.
@@ -34,7 +37,7 @@
 
 import sys
 import pdb
-import ipdb
+#import ipdb
 import scipy.misc
 import random
 import csv
@@ -50,8 +53,11 @@ from my_utils import *
 import net_utils
 import girder as g
 import pylaw
-
-
+try:
+    import matplotlib.pyplot as plt
+except:
+    print("no plotting")
+    
 # ============= external
 # load_data(params)
 
@@ -251,7 +257,8 @@ class ChipData:
                              mirror=mirror, scale=scale, pad_value=180)
 
         # handle brightness contrast augmentaiton
-        image = (image*contrast)+brightness;
+        # TODO: Fix this so it does not change the prediction channel.
+        #image = (image*contrast)+brightness;
         np.clip(image, 0, 255, out=image)
         image = np.uint8(image)
 
@@ -259,7 +266,7 @@ class ChipData:
                              truth_size, rotation=rotation, \
                              mirror=mirror, scale=scale, pad_value=0, \
                              interpolation=cv2.INTER_NEAREST)
-        ignore = truth[...,0]
+        ignore = np.invert(truth[...,3])
 
         # at some stage, pixles are interpolated 
         truth[truth>128] = 255
@@ -351,73 +358,121 @@ class ImageData:
         error_map: sample distribution (can be any spacing).
         sample_count:  the number of chips to return.
         Returns a list of high error chips.
-        mask has to be the same spacing and dimensions as the error map
         """
         gc = g.get_gc()
-        
+
         rgb_mask = g.get_image_file(gc,self.item_id,'masks.png')
-        if rgb_mask.shape[0] != error_map.shape[0] or \
-            rgb_mask.shape[1] != error_map.shape[1]:
-                print "Shape of error map must be the same shape as the mask"
-                return []
-        
-        # Get spacing variables for the thre different system: mask, input, output.
-        # Mask can be an arbitray level (power of two).
-        mask_spacing = int(round(float(self.y_dim) / error_map.shape[0])) 
+
+        # The mask apsect ratio got messed up somewhere.  pixels are not sqaure.
+        # Compensate / undo this.
         input_spacing = math.pow(2, self.params['input_level'])
         output_spacing = input_spacing * self.params['rf_stride']
+        output_dim_x = int(self.x_dim / output_spacing)
+        output_dim_y = int(self.y_dim / output_spacing)
+        #coordinate system for rgb mask bc too big at high res
+        rgb_mask_spacing_x = output_dim_x/rgb_mask.shape[1]
+        rgb_mask_spacing_y = output_dim_y/rgb_mask.shape[0]
+        #rgb_mask = cv2.resize(rgb_mask, (output_dim_x, output_dim_y), interpolation=cv2.INTER_NEAREST)
         
+        #making yet another coordinate system for the error map bc this is too big at high res
+        error_map_spacing_x = self.x_dim / error_map.shape[1]
+        error_map_spacing_y = self.y_dim / error_map.shape[0]
+        #error_map = cv2.resize(error_map, (output_dim_x, output_dim_y), interpolation=cv2.INTER_LINEAR)
+
+
         # Compute the size of the input chip we will need.
         # Augmentation shrinks the chip so we have to save a larger orginal image here.
         # We also have to leave enough padding for rotsation augmentation
         # (without clipping corners).
         min_scale = self.params['min_augmentation_scale']
-        chip_size = int(math.ceil(self.params['input_size'] * math.sqrt(2) / min_scale))
-        mask_size = int(chip_size * input_spacing / mask_spacing)
-        mask_margin = int(math.ceil(mask_size / 2))
+        in_chip_size = int(math.ceil(self.params['input_size'] * math.sqrt(2) / min_scale))
+        out_chip_size = int(in_chip_size * input_spacing / output_spacing)
+        out_chip_margin = int(math.ceil(out_chip_size / 2))
         
-        # Get a list of sample centers (in mask coordinates).
+        #find the margins for the error map
+        error_map_margin_x = int(out_chip_margin * output_spacing / error_map_spacing_x)
+        error_map_margin_y = int(out_chip_margin * output_spacing / error_map_spacing_y)
+        
+        # Get a list of sample centers (output / truth coordinates).
         # pylaw sample requires a normalized pdf.
         # make a list of random floats as samples.
         samples = np.random.uniform(0, 1, sample_count)
         samples.sort()
         points = np.zeros((sample_count,2))
         # Shrink the map to avoid sampling margins.
-        error_map = error_map[mask_margin:-mask_margin,
-                              mask_margin:-mask_margin]
+        error_map = error_map[error_map_margin_y:-error_map_margin_y,
+                              error_map_margin_x:-error_map_margin_x]
         # find the samples using an optimized c function.
         error_map = error_map.astype(np.float64)
         error_map /= np.sum(error_map)
         pylaw.sample(error_map, samples, points)
-        #points, _ = pylaw2(error_map, 20, sample_count, margin=mask_margin)
+        
+        #Loop through the points and multiply each coordinate by error_map_spacing_x / output_spacing
+        for point in points:
+            point[1] *= error_map_spacing_x / output_spacing
+            point[0] *= error_map_spacing_y / output_spacing
 
-        # now crop the chips and save them in the image data.        
+        
+        #points, _ = pylaw2(error_map, 20, sample_count, margin=out_chip_margin)
+
+        # now crop the chips and save them in the image data.
+        #get prediction image if it exists
+        prediction = None
+        files = gc.listFile(self.item_id)
+        prediction_level = self.params['input_level']+3
+        for f in files:
+            if f['name'] == 'prediction%d.png'%prediction_level:
+                prediction = g.get_image_file(gc,self.item_id,'prediction%d.png'%prediction_level)
+
+        if not(prediction is None):
+            if len(prediction.shape) == 3:
+                prediction = prediction[...,0]
+            # get the dimensions of the input
+            xInputDim = int(self.x_dim/input_spacing)
+            yInputDim = int(self.y_dim/input_spacing)
+            # reshape the preiction to the same size as the input
+            prediction = cv2.resize(prediction,(xInputDim,yInputDim),interpolation = cv2.INTER_AREA)
+        
         new_chips = []
         for idx in range(len(points)):
             # add the margin back in as an offset
-            mask_y = int(points[idx,0]) + mask_margin
-            mask_x = int(points[idx,1]) + mask_margin
+            out_y = int(points[idx,0]) + out_chip_margin
+            out_x = int(points[idx,1]) + out_chip_margin
             # Get the input image chip from girder.
             # location of sample point in image coordinates
-            x = mask_x * mask_spacing
-            y = mask_y * mask_spacing
-            # TODO: use the cache stored in params.
-            image = g.get_image_cutout(gc, self.item_id, (x,y), chip_size, chip_size,
+            x = out_x * output_spacing
+            y = out_y * output_spacing
+            # TODO: use the cache stored in params. DONE
+            image = g.get_image_cutout(gc, self.item_id, (x,y), in_chip_size, in_chip_size,
                                        scale=1.0/input_spacing, cache='cache')
 
-            image = np.dstack((image, np.zeros(image.shape[:-1])))
+            # if there is a prediction image, we want to add it as the fourth input
+            if not(prediction is None):
+                #crop out the section that we need for the chip
+                # (x,y) is in level0 coordinates.
+                in_x0 = int((x/input_spacing)-(in_chip_size/2))
+                in_y0 = int((y/input_spacing)-(in_chip_size/2))
+                prediction_chip = prediction[in_y0:in_y0+in_chip_size, in_x0:in_x0+in_chip_size]
+                #add it as the fourth channel
+                image = np.dstack((image, prediction_chip))
+            else:
+                #if there isn't a prediction image, just add zeros as the fourth column
+                image = np.dstack((image, np.zeros(image.shape[:-1])))
 
 
             # Crop the corresponding section from the mask.
-            x0 = int(mask_x - mask_size/2)
-            y0 = int(mask_y - mask_size/2)
+            out_x0 = int(out_x - out_chip_size/2)
+            out_y0 = int(out_y - out_chip_size/2)
 
-            mask_chip = rgb_mask[y0:y0+mask_size, x0:x0+mask_size,:]
-            # Rescale to net_output coordinates / truth image.
-            # Do not worry about shrinkage due to convolution boundary.
-            truth_size = chip_size / self.params['rf_stride'] 
+            rgb_chip_sizex = out_chip_size/rgb_mask_spacing_x
+            rgb_chip_sizey = out_chip_size/rgb_mask_spacing_y
+            rgb_out_y0 = out_y0/rgb_mask_spacing_y
+            rgb_out_x0 = out_x0/rgb_mask_spacing_x
+
+            truth = rgb_mask[rgb_out_y0:rgb_out_y0+rgb_chip_sizey, rgb_out_x0:rgb_out_x0+rgb_chip_sizex,:]
             
-            truth = cv2.resize(mask_chip, (truth_size,truth_size),interpolation = cv2.INTER_AREA)
+            truth = cv2.resize(truth, (out_chip_size, out_chip_size), interpolation=cv2.INTER_NEAREST)            
+
             
             chip_data = ChipData(image, truth, (x,y), self, input_spacing)
             new_chips.append(chip_data)
@@ -523,8 +578,8 @@ class TrainingData:
         # - in progress
 
         print("working")
-        # Hard code the single "free tail bat" slide (HEC-1606 Slide C
-        image_data = ImageData("5915d969dd98b578723a09c2", params)
+        # Hard code the single "free tail bat" slide (HEC-1606 Slide F
+        image_data = ImageData("5915da6add98b578723a09cb", params)
         self.image_data.append(image_data)
         
         
@@ -556,18 +611,18 @@ class TrainingData:
         gc = g.get_gc()
         image_data = self.image_data[self.image_data_index]
 
-        error_map = g.get_image_file(gc,image_data.item_id,'error_map.png')
+        error_map = g.get_image_file(gc,image_data.item_id,'error_map%d.png'%self.params['input_level'])
         if error_map is None:
             masks = g.get_image_file(gc,image_data.item_id,'masks.png')
             error_map = masks
 
         neg_mask = error_map[:,:,2]
         if not neg_mask is None:
-            self.neg_chips += image_data.sample_chips(neg_mask, 100)
+            self.neg_chips += image_data.sample_chips(neg_mask, self.params['chips_per_epoch'])
 
         pos_mask = error_map[:,:,1]
         if not pos_mask is None:
-            self.pos_chips += image_data.sample_chips(pos_mask, 100)
+            self.pos_chips += image_data.sample_chips(pos_mask, self.params['chips_per_epoch'])
 
         # Move to the next image to load.
         self.image_data_index += 1
@@ -900,10 +955,12 @@ class TrainingData:
         # Save so the program can update chip errors.
         self.batch_chips = pos_chips + neg_chips
     
-        if params['debug']:
-            for idx in range(len(input_np)):
-                image = inputs[idx]
+        if params['debug'] and 'batch2' in params['debug']:
+            for idx in range(len(inputs)):
+                image = inputs[idx][:,:,0:2]
                 cv2.imwrite("debug/batch_%d_image.png"%idx, image)
+                prediction = inputs[idx][:,:,3]
+                cv2.imwrite("debug/batch_%d_image.png"%idx, prediction)
                 truth = truths[idx]
                 tmp = truth * 255
                 cv2.imwrite("debug/batch_%d_truth.png"%idx, tmp)
@@ -995,9 +1052,3 @@ if __name__ == '__main__':
     image = image_data.load_image()        
     chip_size = 312
     data.load_positive_chips(image_data, image, chip_size)
-
-    
-
-
-    
-

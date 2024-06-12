@@ -1,68 +1,9 @@
-#!/home/local/KHQ/charles.law/envs/pytorch/bin/python
-# sbatch -c 3 -p vigilant --gres=gpu:1 main116.py
+# Masked saved in girder item with the image.
+# positive, negative, unknown  (g,r,b)
 
 
 
-# Trying to extend adversarial modification to all input images.
-
-
-
-
-
-# Failed on these:
-# ./train/Moscow/3857_9_309_159_20170202_31e1ec5c-62ba-4fbe-9a1f-b7c0a1dc908b.png
-# 1.2 GB:  ./train/Denver/3857_11_428_776_20170212_c0201363-a11e-43f6-8554-14db84707f56.png
-
-
-# Scalable training.
-# Load images incrementally.  Load them one at a time, free them immediatly.
-# Load larger "chips" around targets and false positive regions.
-# I select negative chips by first creating an error map of the whole image.
-#   I compute a target number of samples by using the total number of positive chips
-#   and the realtive magnitude of the error map. (huristic)
-# Keep track of the chip error.
-# sample batch: select chips with probability based on error,
-#   augments the chip with rotation, scale, then crop smaller images for training
-
-
-
-
-
-# Load images one at a time. Never have more than one full image in memory at a time.
-# Strategy:
-# - Cache negative and positive image chips.
-# - Positive chips are static.
-# - Negative chips get sampled at some interval.  Negative chips get pruned at the same time.
-# - Chips have their own sample probabliltiy.
-# - Chips are big enough to have rotational augmentatnion.
-#   - This is necessary because positive chips are static.
-# - translation augmentation is accomplished by simply passing larger images through the network.
-# - Each chip has its own truth mask. each chip has its own pdf.
-
-
-
-# finished:
-# - Test read file names and create empty image_data objects.
-# - Test Load positive chips for a single image.
-# - Test generation of truth masks (positve)
-# - Sample negative chips for a single image.
-# - Write code to sample batch images and truth from the chips.
-# - Subsample large targets.
-
-
-
-# TODO:
-# Add adversarial
-
-
-
-# Old ...........  Drop?
-# - figure out why max of negative error map is always 0.1
-# - Save out histograms of error for positive and negative chips.
-# - Abstract the ground truth (implicit annotations, explicit mask).
-
-
-
+import signal
 import sys
 import shutil
 import torch
@@ -74,7 +15,7 @@ import torch.optim as optim
 import fcnn116 as target_last
 import fcnn as target
 import pdb
-import ipdb
+#import ipdb
 import scipy.misc
 import csv
 import random
@@ -84,14 +25,13 @@ import math
 import os
 import numpy as np
 from pprint import pprint
-import utils
+import my_utils
 import girder as g
 # todo: get rid of the misc function references.
 import data_mask as d
 import net_utils
 #from adversarial import *
-
-
+import json
 
 
 # Just generate the output map for the all the loaded iamges.
@@ -156,6 +96,9 @@ def train(net, data, params):
     num_adversarial_images = 0 # 2
     smax = nn.Softmax(dim=1)
 
+    first = True
+    count = 0    
+    
     for batch in range(params['num_batches']):
         print("== Batch %d"%batch)
         input_np, truth_np, dont_care_np = data.sample_batch(params)
@@ -163,24 +106,24 @@ def train(net, data, params):
         # Scale to 0->1
         input_np = input_np.astype(np.float32)/255.0
         input_np = np.moveaxis(input_np, 3, 1)
-        truth_np = np.array(truth_np).astype(np.long)
+        truth_np = np.array(truth_np)
 
         input_tensor = torch.from_numpy(input_np).float()
-        input_tensor = input_tensor.cuda(params['gpu'])
+        truth_tensor = torch.from_numpy(truth_np).float()
+        if torch.cuda.is_available():
+            input_tensor = input_tensor.cuda(params['gpu'])
+            truth_tensor = truth_tensor.cuda(params['gpu'])
 
-        truth_tensor_cpu = torch.from_numpy(truth_np).long()
-        truth_tensor = truth_tensor_cpu.cuda(params['gpu'])
         # Extract the ignore mask from the truth values.  Ignore bit is 128
-        dont_care_np = (dont_care_np > 128).astype(np.int)
         ignore_mask_tensor = torch.from_numpy(dont_care_np)
         
         # learning rate change with batch size?
         # create your optimizer
-        optimizer = optim.SGD(net.parameters(), lr=params['rate'])
+        optimizer = optim.SGD(net.schedule_parameters(), lr=params['rate'])
 
         # loss function
-        criterion = torch.nn.CrossEntropyLoss(reduce=False)
-    
+        criterion = torch.nn.MSELoss(reduce=False)
+
         for mini in range(params['num_minibatches']):  # loop over the dataset multiple times
             running_loss = 0.0
             # zero the parameter gradients
@@ -188,15 +131,38 @@ def train(net, data, params):
 
             # forward + backward + optimize
             output_tensor = net(input_tensor)
+            output_tensor = smax(output_tensor)
 
-            # not needed with only one target
-            # Ignore all but the targeted indexes for the loss function.
-            #tmp_out = output_tensor[:,params['target_indexes'],...]
-
-            tmp_out = output_tensor
+            tmp_out = output_tensor[:,1,...]
             loss = criterion(tmp_out, truth_tensor)
+
+            if params['debug'] and mini == params['num_minibatches']-1:
+                if 'output' in params['debug']:
+                    output = output_tensor
+                    for idx in range(len(input_np)):
+                        tmp = (output[idx,1]).cpu().detach().numpy()
+                        cv2.imwrite("d%d_output.png"%idx, tmp*255)
+            
+                if 'batch' in params['debug']:
+                    for idx in range(len(input_np)):
+                        tmp = np.moveaxis(input_np[idx], 0,2)*255
+                        cv2.imwrite("d%d_input.png"%idx, tmp[...,0:3])
+                        cv2.imwrite("d%d_inputP.png"%idx, tmp[...,3])
+                        cv2.imwrite("d%d_truth.png"%idx, (truth_np[idx]*255).astype(np.uint8))
+
+                if 'loss' in params['debug']:
+                    tmp = loss.cpu().detach().numpy()
+                    for idx in range(len(input_np)):
+                        cv2.imwrite("d%d_loss1.png"%idx, tmp[idx]*255)
+
             # Zero out mask pixels.
-            loss[ignore_mask_tensor] = 0.0
+            loss[ignore_mask_tensor>128] = 0.0
+
+            if params['debug'] and 'loss' in params['debug'] and mini == 29:
+                tmp = loss.cpu().detach().numpy()
+                for idx in range(len(input_np)):
+                    cv2.imwrite("d%d_loss2.png"%idx, tmp[idx]*255)
+
             loss_scalar = loss.mean()
             
             loss_scalar.backward()  #loss.backward(retain_graph=True)
@@ -221,18 +187,29 @@ def train(net, data, params):
                     print("\033[1A %d: loss: %.3f" % (mini + 1, running_loss))
                 #print("%d: loss: %.3f" % (mini + 1, running_loss))
             last_loss = running_loss
-                
+
         if running_loss < start_loss:
-            # Save the weights
-            filename = os.path.join(params['folder_path'], params['target_group'], 'model%d.pth'%params['input_level'])
-            print("Saving network " + filename)
-            if os.path.isfile(filename):
-                shutil.move(filename, os.path.join(params['folder_path'], params['target_group'], \
-                                                   'model_backup.pth'))
-            if not params['debug']:
+            #if not params['debug'] or len(params['debug']) == 0:
+            if True:
+                # Save the weights
+                filename = os.path.join(params['folder_path'], params['target_group'],
+                                        'model%d.pth'%params['input_level'])
+                print("Saving network " + filename)
+                if os.path.isfile(filename):
+                    shutil.move(filename, os.path.join(params['folder_path'],
+                                                       params['target_group'], \
+                                                       'model_backup.pth'))
                 torch.save(net.state_dict(), filename)
-
-
+                schedule = net.schedule_idx
+                '''
+                if schedule < 12:
+                    schedule += 1
+                    net.set_schedule(schedule)
+                    params['rf_size'] = net.get_rf_size()
+                    params['rf_stride'] = net.get_rf_stride()
+                    print("schedule = %d"%schedule)
+                '''
+                
 
 def save_debug_input(input_tensor, root_name):
     print(" ---- saving %s"%root_name)
@@ -253,10 +230,12 @@ def adversarial(net, input_np, truth_np, params):
     """ Modify the inputs to be more 'false'.
     """
     input_tensor = torch.from_numpy(input_np).float()
-    input_tensor = input_tensor.cuda(params['gpu'])
+    truth_tensor = torch.from_numpy(truth_np).long()
 
-    truth_tensor_cpu = torch.from_numpy(truth_np).long()
-    truth_tensor = truth_tensor_cpu.cuda(params['gpu'])
+    if torch.cuda.is_available():
+        input_tensor = input_tensor.cuda(params['gpu'])
+        truth_tensor = truth_tensor.cuda(params['gpu'])
+
     input_tensor.requires_grad = True
 
     # Extract the ignore mask from the truth values.  Ignore bit is 128
@@ -325,7 +304,9 @@ def test_noise(params):
     # Load the network model
     print('loading net')
     net = load_net(params)    
-    net.cuda(params['gpu'])
+    my_utils.reset_batch_norm(net)
+    if torch.cuda.is_available():
+        net.cuda(params['gpu'])
 
     num_images = 16
     min_scale = 0.8
@@ -356,8 +337,8 @@ def main_test_images(params):
     # Load the network model
     print('loading net')
     net = load_net(params)    
-    #shock_weights(net)
-    net.cuda(params['gpu'])
+    if torch.cuda.is_available():
+        net.cuda(params['gpu'])
     # Lock batch normalization
     net.eval()
     
@@ -429,17 +410,11 @@ def test_sample_batch(data, net, params):
 
 
 
-def main_train(params):
-    net = load_net(params)
-    net.cuda(params['gpu'])
-
-    # A hacky way to train up through the levels.
-    net.set_schedule(params['schedule'])
-    params['rf_size'] = net.get_rf_size()
-    params['rf_stride'] = net.get_rf_stride()
-    
-    
-
+def main_train(net, params):
+    if params['shock'] > 0.0:
+        net_utils.shock_weights(net, params['shock'])
+    if torch.cuda.is_available():
+        net.cuda(params['gpu'])
 
     data = d.TrainingData(params)
 
@@ -461,28 +436,16 @@ def main_train(params):
         os.system('rm %s/debug/*.png'%params['target_group'])
         data.prune_chips()
 
-        # A hacky way to train up through the levels.
-        #if epoch >= 20 and schedule_idx < len(net.schedule):
-        #    epoch = 0
-        #    schedule_idx += 1
-        #    net.set_schedule(schedule_idx)
-        #    params['rf_size'] = net.get_rf_size()
-        #    params['rf_stride'] = net.get_rf_stride()
-        #    print("======= Moving to schedule %d, rf size = %d"%(schedule_idx, \
-        #                                                         net.get_rf_size()))
-        #    # Keep the chip errors, even though the are not completely valid anymore.
-        #    # The truth however is not the same shape. We have to recompute truth images.
-        #    data.recompute_chip_truth()
-
-        if epoch%5 == 0:
-            params['rate'] *= 0.95
-            print("rate %f"%params['rate'])
-            data.save_chips()
+        params['rate'] *= 0.95
+        print("rate %f"%params['rate'])
+        data.save_chips()
             
 
 #=================================================================================
 def load_net(params):
     net = target.net()
+    if 'schedule' in params:
+        net.set_schedule(params['schedule'])
     params['rf_size'] = net.get_rf_size()
     params['rf_stride'] = net.get_rf_stride()
     
@@ -505,46 +468,47 @@ def load_net(params):
     return net
 
 
-
+def exit_gracefully(signum, frame):
+    # restore the original signal handler as otherwise evil things will happen
+    # in raw_input when CTRL+C is pressed, and our signal handler is not re-entrant
+    signal.signal(signal.SIGINT, original_sigint)
     
+    try:
+        if raw_input("\nReally quit? (y/n)> ").lower().startswith('y'):
+            if raw_input("\nSave net? (y/n)> ").lower().startswith('y'):
+                global net, params
+                filename = os.path.join(params['folder_path'], params['target_group'],
+                                        'model%d.pth'%params['input_level'])
+                print("Saving network " + filename)
+                torch.save(net.state_dict(), filename)
+
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("  Ok ok, quitting, chill -_-")
+        sys.exit(1)
+
+    # This path would restart training.
+    # restore the exit gracefully handler here
+    signal.signal(signal.SIGINT, exit_gracefully)
+
+
+
+
+# 3 ok,  2 is not
 if __name__ == '__main__':
-    params = {}
-    # We get these from the net now
-    #params['rf_stride'] = 4
-    #params['rf_size'] = 116
-    params['min_augmentation_scale'] = 0.6
-    params['data_path'] = '../DigitalGlobe/images'  # ancestor directory for png files.
-    params['folder_path'] = '.'  # this is the path to store incremental results.
-    params['truth_radius'] = 30
-    params['ignore_radius'] = 60
-    params['gpu'] = 0 #3 # 0
-    params['num_epochs'] = 100
-    # Batches / Epoch: Load a new image every # batchs
-    params['num_batches'] = 30
-    # resample batch training images every # cycles
-    params['num_minibatches'] = 8 #20
-    params['rate'] = 0.0005
-    params['heatmap_decay'] = 0.2
-    params['debug'] = False
-    params['target_group'] = 'fcnn116'
-    params['max_num_training_images'] = 5000
-    # impacts gpu memory usage
-    params['input_size'] = 116
-    params['batch_size'] = 64
+    random.seed(5)
+    np.random.seed(5)
+    torch.manual_seed(5)
 
-    params['image_cache_dir'] = '../cached_images'
-    params['chip_cache_dir'] = '../cached_chips'
-    params['input_level'] = 4
-    params['schedule'] = 12
-
-
-    main_train(params)
-    sys.exit()
-
-
-
-    print('done')
+    with open('params.json') as json_file:
+        params = json.load(json_file)    
+    net = load_net(params)
+    net.train()
     
-    
-    
+    # store the original SIGINT handler
+    original_sigint = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, exit_gracefully)
+
+    main_train(net, params)
 
